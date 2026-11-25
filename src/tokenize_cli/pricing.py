@@ -94,11 +94,22 @@ class PricingTable:
             return Decimal(1)
         return multipliers[inference_geo]
 
+    @staticmethod
+    def _tier_basis(record: UsageRecord, pricing: ModelPricing) -> int:
+        """Prompt length used for tier selection.
+
+        A Console `context_window` label (long_context) is authoritative: it is the billing
+        boundary itself, so True selects the first tier and False the base rate.
+        """
+        if record.long_context is None or not pricing.tiers:
+            return record.tier_prompt_tokens
+        return pricing.tiers[0].above_prompt_tokens + 1 if record.long_context else 0
+
     def cost(self, record: UsageRecord) -> CostBreakdown:
         model_id = self.resolve(record.model)
         pricing = self.config.models[model_id]
         cache = self.config.cache_multipliers
-        rate_in, rate_out, tier = self.rates_for(model_id, record.prompt_tokens)
+        rate_in, rate_out, tier = self.rates_for(model_id, self._tier_basis(record, pricing))
         read_mult = pricing.cache_read_multiplier or cache.read
 
         scale = self.geo_multiplier(model_id, record.inference_geo) / _PER_MTOK

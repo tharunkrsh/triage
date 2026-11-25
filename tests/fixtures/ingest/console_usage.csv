@@ -1,0 +1,4 @@
+Starting At,Ending At,Model,API Key ID,Workspace ID,Service Tier,Context Window,Inference Geo,Uncached Input Tokens,Cache Creation Ephemeral 5m Input Tokens,Cache Creation Ephemeral 1h Input Tokens,Cache Read Input Tokens,Output Tokens,Requests,Total Tokens
+2026-10-01T00:00:00Z,2026-10-02T00:00:00Z,claude-sonnet-5-5,apikey_test_a,wrkspc_test_1,standard,0-200k,global,1000000,0,0,0,100000,500,1100000
+2026-10-01T00:00:00Z,2026-10-02T00:00:00Z,claude-haiku-5-5,apikey_test_b,wrkspc_test_1,batch,0-200k,,2000000,0,0,500000,20000,1000,2520000
+2026-10-02T00:00:00Z,2026-10-03T00:00:00Z,claude-haiku-5-5,apikey_test_b,wrkspc_test_1,standard,,,not-a-number,0,0,0,10,1,10
