@@ -256,3 +256,28 @@ def test_real_retired_claude_4_rates(real_table, name, canonical, total):
 def test_real_claude_3_haiku_cost(real_table):
     c = real_table.cost(rec("claude-3-haiku-20240307", input_tokens=M, output_tokens=M))
     assert c.total == D("1.5")
+
+
+# ---------------------------------------------------------------- aggregated rows (Console)
+
+
+def test_aggregate_tier_uses_per_request_average(table):
+    # 3 requests totalling 240k prompt tokens -> 80k each: below the 100k cliff.
+    assert table.cost(rec("cliff", input_tokens=240_000, request_count=3)).tier_applied is None
+    # 2 requests totalling 240k -> 120k each: over the cliff.
+    assert table.cost(rec("cliff", input_tokens=240_000, request_count=2)).tier_applied == 100_000
+
+
+def test_aggregate_without_request_count_uses_base(table):
+    r = rec("cliff", input_tokens=5 * M, request_count=None)
+    assert table.cost(r).tier_applied is None
+
+
+@pytest.mark.parametrize("long_context, tier", [(True, 100_000), (False, None)])
+def test_long_context_label_overrides_average(table, long_context, tier):
+    r = rec("cliff", input_tokens=200_000, request_count=1, long_context=long_context)
+    assert table.cost(r).tier_applied == tier
+
+
+def test_long_context_ignored_for_untiered_model(table):
+    assert table.cost(rec("flat", input_tokens=M, long_context=True)).total == D(2)

@@ -89,8 +89,17 @@ class PricingConfig(_Strict):
 # --------------------------------------------------------------------------- usage + cost
 
 
+_NO_GEO = {None, "", "not_available"}
+
+
 class UsageRecord(_Strict):
-    """One API request's token usage, normalised from JSONL logs or Console exports."""
+    """Token usage normalised from JSONL logs or Console exports.
+
+    A JSONL log line is one request (`request_count == 1`). A Console usage-report row is an
+    aggregate over a time bucket: `request_count` is the bucket's request total, or `None` when
+    the export doesn't report one (legacy usage report). Per-request detectors must skip
+    aggregated rows (`is_aggregated`).
+    """
 
     model: str
     input_tokens: TokenCount = 0
@@ -106,14 +115,25 @@ class UsageRecord(_Strict):
     feature: str | None = None
     api_key_id: str | None = None
     system_prompt_hash: str | None = None
+    request_count: Annotated[int, Field(ge=1)] | None = 1
+    period_end: datetime | None = None
+    long_context: bool | None = None  # Console `context_window` bucket; overrides tier guessing
+    service_tier: str | None = None
+    workspace_id: str | None = None
+    actor_id: str | None = None
+    product: str | None = None
 
     @model_validator(mode="before")
     @classmethod
-    def _split_cache_creation(cls, data: Any) -> Any:
-        """Map the API's flat `cache_creation_input_tokens` onto the 5m bucket if no split."""
-        if not isinstance(data, dict) or "cache_creation_input_tokens" not in data:
+    def _normalise_inputs(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
             return data
         data = dict(data)
+        # Console/API report "not_available" (or null) for models without geo routing.
+        if "inference_geo" in data and data["inference_geo"] in _NO_GEO:
+            data["inference_geo"] = "global"
+        if "cache_creation_input_tokens" not in data:
+            return data
         flat = data.pop("cache_creation_input_tokens")
         has_split = (
             "cache_creation_5m_input_tokens" in data or "cache_creation_1h_input_tokens" in data
@@ -121,6 +141,10 @@ class UsageRecord(_Strict):
         if not has_split and flat is not None:
             data["cache_creation_5m_input_tokens"] = flat
         return data
+
+    @property
+    def is_aggregated(self) -> bool:
+        return self.request_count != 1
 
     @property
     def prompt_tokens(self) -> int:
@@ -131,6 +155,14 @@ class UsageRecord(_Strict):
             + self.cache_creation_5m_input_tokens
             + self.cache_creation_1h_input_tokens
         )
+
+    @property
+    def tier_prompt_tokens(self) -> int:
+        """Prompt length per request, for tier selection. Averages over aggregated rows;
+        an aggregate with no request count gives 0 (base rates) since sums say nothing."""
+        if self.request_count is None:
+            return 0
+        return self.prompt_tokens // self.request_count
 
 
 class CostBreakdown(_Strict):

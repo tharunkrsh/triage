@@ -40,3 +40,25 @@ def test_negative_tokens_rejected():
 def test_unknown_field_rejected():
     with pytest.raises(ValidationError):
         UsageRecord(model="m", bogus=1)
+
+
+@pytest.mark.parametrize("geo", [None, "", "not_available"])
+def test_missing_geo_normalised_to_global(geo):
+    assert UsageRecord(model="m", inference_geo=geo).inference_geo == "global"
+
+
+def test_aggregation_flags():
+    assert not UsageRecord(model="m").is_aggregated
+    assert UsageRecord(model="m", request_count=5).is_aggregated
+    assert UsageRecord(model="m", request_count=None).is_aggregated
+
+
+def test_tier_prompt_tokens_averages_aggregates():
+    assert UsageRecord(model="m", input_tokens=300, request_count=3).tier_prompt_tokens == 100
+    assert UsageRecord(model="m", input_tokens=300, request_count=None).tier_prompt_tokens == 0
+    assert UsageRecord(model="m", input_tokens=300).tier_prompt_tokens == 300
+
+
+def test_request_count_must_be_positive():
+    with pytest.raises(ValidationError):
+        UsageRecord(model="m", request_count=0)
