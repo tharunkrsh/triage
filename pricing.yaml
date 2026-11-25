@@ -1,0 +1,174 @@
+# Single source of truth for Anthropic Claude API pricing used by tokenize.
+# All prices are USD per million tokens (MTok) at base (non-batch, global) rates.
+# Cache write/read prices are derived via cache_multipliers (per-model read overrides below).
+version: 1
+source: https://platform.claude.com/docs/en/about-claude/pricing
+retrieved: 2026-11-25
+
+batch_discount: 0.5            # Batch API cost = base cost * batch_discount
+cache_multipliers:
+  write_5m: 1.25
+  write_1h: 2.0
+  read: 0.1                    # default; overridden per model via cache_read_multiplier
+inference_geo_multipliers:
+  global: 1.0
+  us: 1.1                      # applies only to models with geo_supported: true (Claude 4.6+)
+
+models:
+  # --- Fable / Mythos ---
+  claude-fable-5-2:
+    aliases: [fable-5-2]
+    input: 8.00
+    output: 40.00
+    cache_read_multiplier: 0.025
+    geo_supported: true
+  claude-mythos-5-2:
+    aliases: [mythos-5-2]
+    input: 8.00
+    output: 40.00
+    cache_read_multiplier: 0.025
+    geo_supported: true
+  claude-fable-5-1:
+    aliases: [fable-5-1]
+    input: 10.00
+    output: 50.00
+    cache_read_multiplier: 0.025
+    geo_supported: true
+  claude-mythos-5-1:
+    aliases: [mythos-5-1]
+    input: 10.00
+    output: 50.00
+    cache_read_multiplier: 0.025
+    geo_supported: true
+  claude-fable-5:
+    aliases: [fable-5]
+    input: 10.00
+    output: 50.00
+    geo_supported: true
+  claude-mythos-5:
+    aliases: [mythos-5]
+    input: 10.00
+    output: 50.00
+    geo_supported: true
+
+  # --- Opus ---
+  claude-opus-5-5:
+    aliases: [opus-5-5]
+    input: 4.00
+    output: 20.00
+    cache_read_multiplier: 0.05
+    geo_supported: true
+  claude-opus-5:
+    aliases: [opus-5]
+    input: 5.00
+    output: 25.00
+    geo_supported: true
+  claude-opus-4-8:
+    aliases: [opus-4-8]
+    input: 5.00
+    output: 25.00
+    geo_supported: true
+  claude-opus-4-7:
+    aliases: [opus-4-7]
+    input: 5.00
+    output: 25.00
+    geo_supported: true
+  claude-opus-4-6:
+    aliases: [opus-4-6]
+    input: 5.00
+    output: 25.00
+    geo_supported: true
+  claude-opus-4-5:
+    aliases: [opus-4-5]
+    input: 5.00
+    output: 25.00
+  claude-opus-4-1:
+    aliases: [opus-4-1]
+    input: 15.00
+    output: 75.00
+    retired: true
+  claude-opus-4:
+    aliases: [opus-4, claude-opus-4-0]
+    input: 15.00
+    output: 75.00
+    retired: true
+
+  # --- Sonnet ---
+  claude-sonnet-5-5:
+    aliases: [sonnet-5-5]
+    input: 2.00
+    output: 10.00
+    cache_read_multiplier: 0.05
+    geo_supported: true
+  claude-sonnet-5:
+    aliases: [sonnet-5]
+    input: 2.00
+    output: 10.00
+    geo_supported: true
+  claude-sonnet-4-6:
+    aliases: [sonnet-4-6]
+    input: 3.00
+    output: 15.00
+    geo_supported: true
+  claude-sonnet-4-5:
+    aliases: [sonnet-4-5]
+    input: 3.00
+    output: 15.00
+  claude-sonnet-4:
+    aliases: [sonnet-4, claude-sonnet-4-0]
+    input: 3.00
+    output: 15.00
+    retired: true
+
+  # --- Haiku ---
+  claude-haiku-5-5:
+    aliases: [haiku-5-5]
+    input: 0.10
+    output: 0.50
+    geo_supported: true
+    tiers:                     # whole request repriced when prompt_tokens > above_prompt_tokens
+      - above_prompt_tokens: 100000
+        input: 0.50
+        output: 2.50
+  claude-haiku-4-5:
+    aliases: [haiku-4-5]
+    input: 1.00
+    output: 5.00
+
+  # --- Retired Claude 3.x (historical list prices; no longer on the pricing page) ---
+  claude-3-opus-20240229:
+    aliases: [claude-3-opus-latest, claude-3-opus]
+    input: 15.00
+    output: 75.00
+    retired: true
+    price_source: historical
+  claude-3-sonnet-20240229:
+    aliases: [claude-3-sonnet]
+    input: 3.00
+    output: 15.00
+    retired: true
+    price_source: historical
+  claude-3-haiku-20240307:
+    aliases: [claude-3-haiku]
+    input: 0.25
+    output: 1.25
+    retired: true
+    price_source: historical
+  claude-3-5-sonnet-20241022:
+    aliases: [claude-3-5-sonnet-20240620, claude-3-5-sonnet-latest, claude-3-5-sonnet]
+    input: 3.00
+    output: 15.00
+    retired: true
+    price_source: historical
+  claude-3-5-haiku-20241022:
+    aliases: [claude-3-5-haiku-latest, claude-3-5-haiku]
+    input: 0.80
+    output: 4.00
+    retired: true
+    price_source: historical
+  claude-3-7-sonnet-20250219:
+    aliases: [claude-3-7-sonnet-latest, claude-3-7-sonnet]
+    input: 3.00
+    output: 15.00
+    retired: true
+    price_source: historical
