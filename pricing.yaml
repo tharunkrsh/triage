@@ -13,6 +13,21 @@ cache_multipliers:
 inference_geo_multipliers:
   global: 1.0
   us: 1.1                      # applies only to models with geo_supported: true (Claude 4.6+)
+# Applied to every token category. Priority Tier usage is covered by the capacity commitment,
+# so its marginal token cost is $0 (tokens are still reported separately).
+service_tier_multipliers:
+  standard: 1.0
+  priority: 0.0
+# Fast mode (`speed: fast`) multiplies a model's input/output rates by its fast_multiplier and
+# is never Batch-discounted. Models without fast_multiplier don't offer fast mode.
+
+# Bleed-detector thresholds for `tokenize audit`.
+audit:
+  uncached_min_input_tokens: 1024   # minimum cacheable prompt length
+  uncached_min_repeats: 2           # identical system prompts before caching is suggested
+  cache_5m_ttl_seconds: 300         # 5-minute cache TTL (refreshed on each hit)
+  bloated_max_tokens_ratio: 4       # flag max_tokens > ratio * output_tokens
+  top_n: 10                         # rows in the Top-N offenders table
 
 models:
   # --- Fable / Mythos ---
@@ -20,12 +35,14 @@ models:
     aliases: [fable-5-2]
     input: 8.00
     output: 40.00
+    fast_multiplier: 2
     cache_read_multiplier: 0.025
     geo_supported: true
   claude-mythos-5-2:
     aliases: [mythos-5-2]
     input: 8.00
     output: 40.00
+    fast_multiplier: 2
     cache_read_multiplier: 0.025
     geo_supported: true
   claude-fable-5-1:
@@ -56,17 +73,20 @@ models:
     aliases: [opus-5-5]
     input: 4.00
     output: 20.00
+    fast_multiplier: 2
     cache_read_multiplier: 0.05
     geo_supported: true
   claude-opus-5:
     aliases: [opus-5]
     input: 5.00
     output: 25.00
+    fast_multiplier: 2
     geo_supported: true
   claude-opus-4-8:
     aliases: [opus-4-8]
     input: 5.00
     output: 25.00
+    fast_multiplier: 2
     geo_supported: true
   claude-opus-4-7:
     aliases: [opus-4-7]
@@ -77,6 +97,7 @@ models:
     aliases: [opus-4-6]
     input: 5.00
     output: 25.00
+    fast_multiplier: 6
     geo_supported: true
   claude-opus-4-5:
     aliases: [opus-4-5]

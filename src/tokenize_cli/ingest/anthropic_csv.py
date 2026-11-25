@@ -40,6 +40,7 @@ COLUMN_MAP: dict[str, str] = {
     "api_key_id": "api_key_id",
     "workspace_id": "workspace_id",
     "service_tier": "service_tier",
+    "speed": "speed",
     "inference_geo": "inference_geo",
     "product": "product",
     "context_window": "long_context",
@@ -56,7 +57,7 @@ COLUMN_MAP: dict[str, str] = {
 
 # Known report columns tokenize doesn't use; dropped without a warning.
 _KNOWN_UNUSED = re.compile(
-    r"^(total_tokens|speed|actor_type|actor\..*|server_tool_use.*|web_search_requests|"
+    r"^(total_tokens|actor_type|actor\..*|server_tool_use.*|web_search_requests|"
     r"slack_channel_id|claude_tag_.*|rbac_group_id|user_profile_id|agent_id|environment_id|"
     r"deployment_id|session_id)$"
 )

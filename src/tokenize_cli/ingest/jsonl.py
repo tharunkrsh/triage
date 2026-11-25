@@ -36,7 +36,7 @@ def _from_usage(usage: dict[str, Any]) -> dict[str, Any]:
         out["cache_creation_1h_input_tokens"] = split.get("ephemeral_1h_input_tokens") or 0
     elif usage.get("cache_creation_input_tokens") is not None:
         out["cache_creation_input_tokens"] = usage["cache_creation_input_tokens"]
-    for key in ("service_tier", "inference_geo"):
+    for key in ("service_tier", "inference_geo", "speed"):
         if usage.get(key) is not None:
             out[key] = usage[key]
     return out
