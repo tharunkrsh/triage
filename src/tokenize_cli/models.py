@@ -16,6 +16,7 @@ def _to_decimal(value: Any) -> Any:
 
 Money = Annotated[Decimal, BeforeValidator(_to_decimal), Field(ge=0)]
 Multiplier = Annotated[Decimal, BeforeValidator(_to_decimal), Field(gt=0)]
+Factor = Annotated[Decimal, BeforeValidator(_to_decimal), Field(ge=0)]  # may be 0 (free)
 TokenCount = Annotated[int, Field(ge=0)]
 
 
@@ -39,6 +40,7 @@ class ModelPricing(_Strict):
     output: Money
     aliases: list[str] = Field(default_factory=list)
     cache_read_multiplier: Multiplier | None = None
+    fast_multiplier: Multiplier | None = None  # None: fast mode not offered for this model
     geo_supported: bool = False
     tiers: list[PriceTier] = Field(default_factory=list)
     retired: bool = False
@@ -58,6 +60,16 @@ class CacheMultipliers(_Strict):
     read: Multiplier
 
 
+class AuditThresholds(_Strict):
+    """Bleed-detector thresholds (`audit:` in pricing.yaml)."""
+
+    uncached_min_input_tokens: TokenCount
+    uncached_min_repeats: Annotated[int, Field(ge=2)]
+    cache_5m_ttl_seconds: Annotated[int, Field(gt=0)]
+    bloated_max_tokens_ratio: Multiplier
+    top_n: Annotated[int, Field(ge=1)]
+
+
 class PricingConfig(_Strict):
     version: int
     source: str | None = None
@@ -65,6 +77,8 @@ class PricingConfig(_Strict):
     batch_discount: Annotated[Decimal, BeforeValidator(_to_decimal), Field(gt=0, le=1)]
     cache_multipliers: CacheMultipliers
     inference_geo_multipliers: dict[str, Multiplier]
+    service_tier_multipliers: dict[str, Factor] = Field(default_factory=dict)
+    audit: AuditThresholds | None = None
     models: dict[str, ModelPricing]
 
     @model_validator(mode="before")
@@ -119,6 +133,7 @@ class UsageRecord(_Strict):
     period_end: datetime | None = None
     long_context: bool | None = None  # Console `context_window` bucket; overrides tier guessing
     service_tier: str | None = None
+    speed: Literal["standard", "fast"] = "standard"
     workspace_id: str | None = None
     actor_id: str | None = None
     product: str | None = None
@@ -132,6 +147,11 @@ class UsageRecord(_Strict):
         # Console/API report "not_available" (or null) for models without geo routing.
         if "inference_geo" in data and data["inference_geo"] in _NO_GEO:
             data["inference_geo"] = "global"
+        if "speed" in data:
+            speed = data["speed"]
+            data["speed"] = (
+                speed.strip().lower() if isinstance(speed, str) and speed else "standard"
+            )
         if "cache_creation_input_tokens" not in data:
             return data
         flat = data.pop("cache_creation_input_tokens")
@@ -175,4 +195,6 @@ class CostBreakdown(_Strict):
     total: Decimal
     tier_applied: int | None = None
     batch_applied: bool = False
+    fast_applied: bool = False
     geo_multiplier: Decimal = Decimal(1)
+    service_tier_multiplier: Decimal = Decimal(1)

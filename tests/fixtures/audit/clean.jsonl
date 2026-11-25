@@ -1,0 +1,2 @@
+{"request_id": "req_ok_1", "timestamp": "2026-10-01T09:00:00Z", "model": "test-flat", "input_tokens": 500, "output_tokens": 400, "max_tokens": 1000, "feature": "chat", "api_key_id": "key_a"}
+{"request_id": "req_ok_2", "timestamp": "2026-10-01T09:10:00Z", "model": "test-cliff", "input_tokens": 90000, "output_tokens": 800, "max_tokens": 1024, "feature": "classify", "api_key_id": "key_b"}

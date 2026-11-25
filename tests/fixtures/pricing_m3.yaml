@@ -1,0 +1,37 @@
+# Stable, round-number pricing for Milestone 3 tests (not real prices).
+# Adds fast-mode multipliers, service-tier multipliers and audit thresholds.
+version: 1
+batch_discount: 0.5
+cache_multipliers: {write_5m: 1.25, write_1h: 2.0, read: 0.1}
+inference_geo_multipliers: {global: 1.0, us: 1.1}
+service_tier_multipliers:
+  standard: 1.0
+  priority: 0.0                # Priority Tier: covered by capacity commitment
+audit:
+  uncached_min_input_tokens: 1024
+  uncached_min_repeats: 2
+  cache_5m_ttl_seconds: 300
+  bloated_max_tokens_ratio: 4
+  top_n: 5
+models:
+  test-cliff:
+    aliases: [cliff]
+    input: 1.00
+    output: 5.00
+    geo_supported: true
+    tiers:
+      - {above_prompt_tokens: 100000, input: 5.00, output: 25.00}
+  test-flat:
+    aliases: [flat]
+    input: 2.00
+    output: 10.00
+    cache_read_multiplier: 0.05
+  test-deep-cache:
+    input: 8.00
+    output: 40.00
+    cache_read_multiplier: 0.025
+    fast_multiplier: 2
+  test-fast6:
+    input: 5.00
+    output: 25.00
+    fast_multiplier: 6

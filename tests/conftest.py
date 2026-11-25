@@ -16,3 +16,13 @@ def table() -> PricingTable:
 @pytest.fixture
 def real_table() -> PricingTable:
     return PricingTable.load()
+
+
+# Milestone 3: pricing fixture with fast-mode, service-tier and audit-threshold config.
+M3_PRICING = FIXTURES / "pricing_m3.yaml"
+AUDIT_FIXTURES = FIXTURES / "audit"
+
+
+@pytest.fixture
+def m3_table() -> PricingTable:
+    return PricingTable.load(M3_PRICING)

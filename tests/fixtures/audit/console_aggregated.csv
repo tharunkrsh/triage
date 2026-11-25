@@ -1,0 +1,4 @@
+Starting At,Ending At,Model,API Key ID,Workspace ID,Service Tier,Speed,Uncached Input Tokens,Cache Read Input Tokens,Output Tokens,Requests
+2026-10-01T00:00:00Z,2026-10-02T00:00:00Z,test-cliff,key_agg,ws_agg,standard,standard,240000,0,2000,2
+2026-10-01T00:00:00Z,2026-10-02T00:00:00Z,test-deep-cache,key_fast,ws_agg,standard,fast,1000000,0,0,10
+2026-10-01T00:00:00Z,2026-10-02T00:00:00Z,test-flat,key_prio,ws_agg,priority,standard,1000000,0,100000,5

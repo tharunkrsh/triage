@@ -11,6 +11,7 @@ import re
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
+from typing import NamedTuple
 
 import yaml
 
@@ -31,6 +32,24 @@ class UnknownModelError(KeyError):
 
 class UnknownGeoError(ValueError):
     """Raised when a record's inference_geo has no multiplier in pricing.yaml."""
+
+
+class UnsupportedSpeedError(ValueError):
+    """Raised for a fast-mode record on a model with no fast_multiplier in pricing.yaml."""
+
+
+class EffectiveRates(NamedTuple):
+    """Per-token USD rates for one record with every multiplier applied."""
+
+    model: str
+    input: Decimal  # also the base for cache write/read multipliers
+    output: Decimal
+    cache_read_multiplier: Decimal
+    tier_applied: int | None
+    batch_applied: bool
+    fast_applied: bool
+    geo_multiplier: Decimal
+    service_tier_multiplier: Decimal
 
 
 def resolve_pricing_path(path: Path | str | None = None) -> Path:
@@ -105,31 +124,70 @@ class PricingTable:
             return record.tier_prompt_tokens
         return pricing.tiers[0].above_prompt_tokens + 1 if record.long_context else 0
 
-    def cost(self, record: UsageRecord) -> CostBreakdown:
+    def service_tier_multiplier(self, service_tier: str | None) -> Decimal:
+        """Marginal-cost factor for a service tier; tiers not in pricing.yaml pay list price."""
+        return self.config.service_tier_multipliers.get(service_tier or "standard", Decimal(1))
+
+    def effective_rates(self, record: UsageRecord, *, tiered: bool = True) -> EffectiveRates:
+        """Per-token rates for `record`. `tiered=False` prices it at base (pre-cliff) rates."""
         model_id = self.resolve(record.model)
         pricing = self.config.models[model_id]
-        cache = self.config.cache_multipliers
-        rate_in, rate_out, tier = self.rates_for(model_id, self._tier_basis(record, pricing))
-        read_mult = pricing.cache_read_multiplier or cache.read
+        basis = self._tier_basis(record, pricing) if tiered else 0
+        rate_in, rate_out, tier = self.rates_for(model_id, basis)
 
-        scale = self.geo_multiplier(model_id, record.inference_geo) / _PER_MTOK
-        if record.is_batch:
+        fast = record.speed == "fast"
+        if fast:
+            if pricing.fast_multiplier is None:
+                raise UnsupportedSpeedError(
+                    f"model {model_id!r} has no fast-mode pricing: add fast_multiplier to "
+                    "pricing.yaml"
+                )
+            rate_in *= pricing.fast_multiplier
+            rate_out *= pricing.fast_multiplier
+
+        geo = self.geo_multiplier(model_id, record.inference_geo)
+        tier_mult = self.service_tier_multiplier(record.service_tier)
+        scale = geo * tier_mult / _PER_MTOK
+        batch = record.is_batch and not fast  # fast mode is never Batch-discounted
+        if batch:
             scale *= self.config.batch_discount
-
-        parts = {
-            "input_cost": record.input_tokens * rate_in,
-            "cache_write_5m_cost": record.cache_creation_5m_input_tokens * rate_in * cache.write_5m,
-            "cache_write_1h_cost": record.cache_creation_1h_input_tokens * rate_in * cache.write_1h,
-            "cache_read_cost": record.cache_read_input_tokens * rate_in * read_mult,
-            "output_cost": record.output_tokens * rate_out,
-        }
-        parts = {k: v * scale for k, v in parts.items()}
-        return CostBreakdown(
+        return EffectiveRates(
             model=model_id,
-            total=sum(parts.values(), Decimal(0)),
+            input=rate_in * scale,
+            output=rate_out * scale,
+            cache_read_multiplier=pricing.cache_read_multiplier
+            or self.config.cache_multipliers.read,
             tier_applied=tier,
-            batch_applied=record.is_batch,
-            geo_multiplier=self.geo_multiplier(model_id, record.inference_geo),
+            batch_applied=batch,
+            fast_applied=fast,
+            geo_multiplier=geo,
+            service_tier_multiplier=tier_mult,
+        )
+
+    def cost(self, record: UsageRecord, *, tiered: bool = True) -> CostBreakdown:
+        rates = self.effective_rates(record, tiered=tiered)
+        cache = self.config.cache_multipliers
+        parts = {
+            "input_cost": record.input_tokens * rates.input,
+            "cache_write_5m_cost": record.cache_creation_5m_input_tokens
+            * rates.input
+            * cache.write_5m,
+            "cache_write_1h_cost": record.cache_creation_1h_input_tokens
+            * rates.input
+            * cache.write_1h,
+            "cache_read_cost": record.cache_read_input_tokens
+            * rates.input
+            * rates.cache_read_multiplier,
+            "output_cost": record.output_tokens * rates.output,
+        }
+        return CostBreakdown(
+            model=rates.model,
+            total=sum(parts.values(), Decimal(0)),
+            tier_applied=rates.tier_applied,
+            batch_applied=rates.batch_applied,
+            fast_applied=rates.fast_applied,
+            geo_multiplier=rates.geo_multiplier,
+            service_tier_multiplier=rates.service_tier_multiplier,
             **parts,
         )
 
@@ -139,4 +197,12 @@ class PricingTable:
             model_id: model.tiers[0].above_prompt_tokens
             for model_id, model in self.config.models.items()
             if model.tiers
+        }
+
+    def cliff_rate_multipliers(self) -> dict[str, Decimal]:
+        """Input-rate jump at each model's first pricing tier (e.g. 5 for Haiku 5.5)."""
+        return {
+            model_id: model.tiers[0].input / model.input
+            for model_id, model in self.config.models.items()
+            if model.tiers and model.input
         }
