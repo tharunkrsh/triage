@@ -198,7 +198,7 @@ def simulate(
     except (OSError, UnknownModelError, ValueError) as exc:
         raise _fail(str(exc)) from exc
 
-    console.print(cli_helpers.estimate_table(cost))
+    console.print(cli_helpers.estimate_table(cost, console))
     if dry_run:
         console.print("Dry run: nothing was submitted.")
         return
@@ -229,14 +229,14 @@ def simulate(
     result = summarize.summarize_simulation(
         outcomes,
         targets=targets,
-        baselines=cli_helpers.baseline_keys(tasks, pricing),
+        logged_models=cli_helpers.logged_models(tasks, pricing),
         judge_model=judge,
         judge_cost=judge_cost,
         source=file.name,
     )
     md_path, html_path = cli_helpers.write_reports(result, outcomes, out)
 
-    console.print(cli_helpers.simulation_table(result))
+    console.print(cli_helpers.simulation_table(result, console))
     console.print(f"Batch API spend (from reported usage): {usd(result.total_sim_cost)}")
     typer.echo(f"Wrote {md_path}")
     typer.echo(f"Wrote {html_path}")

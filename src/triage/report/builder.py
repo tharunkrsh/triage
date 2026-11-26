@@ -11,9 +11,10 @@ from typing import NamedTuple
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from triage.audit.models import AuditResult
+from triage.simulate import charts
+from triage.simulate.charts import build_charts, group_label
 from triage.simulate.models import (
     CandidateOutcome,
-    CandidateSummary,
     SimulationResult,
     WilsonInterval,
 )
@@ -120,62 +121,10 @@ def render_html(result: AuditResult, *, source: str | None = None) -> str:
 # --------------------------------------------------------------------------- simulation
 
 
-class _Point(NamedTuple):
-    summary: CandidateSummary
-    x: float
-    y: float
-    y_low: float
-    y_high: float
-
-
-class _Chart(NamedTuple):
-    title: str
-    max_cost: Decimal
-    points: list[_Point]
-
-
 class _Failure(NamedTuple):
     outcome: CandidateOutcome
     reason: str
     excerpt: str
-
-
-# Plot area inside the template's 640x320 viewBox.
-_LEFT, _TOP, _WIDTH, _HEIGHT = 60, 20, 540, 250
-
-
-def group_label(feature: str | None, prompt_version: str | None) -> str:
-    return f"{feature or '(no feature)'} / {prompt_version or '(no version)'}"
-
-
-def _chart(title: str, rows: list[CandidateSummary]) -> _Chart:
-    """Cost (x) against pass rate (y) for the rows of one group that have evidence."""
-    max_cost = max(row.projected_cost_per_task for row in rows)
-    span = float(max_cost) or 1.0  # an all-free group plots on the y axis
-
-    def y(rate: float) -> float:
-        return round(_TOP + (1 - rate) * _HEIGHT, 2)
-
-    points = [
-        _Point(
-            summary=row,
-            x=round(_LEFT + float(row.projected_cost_per_task) / span * _WIDTH, 2),
-            y=y(row.pass_rate.p_hat),
-            y_low=y(row.pass_rate.low),
-            y_high=y(row.pass_rate.high),
-        )
-        for row in rows
-    ]
-    return _Chart(title, max_cost, points)
-
-
-def _charts(result: SimulationResult) -> list[_Chart]:
-    """One chart per (feature, prompt_version) group with graded tasks."""
-    groups: dict[str, list[CandidateSummary]] = {}
-    for row in result.summaries:
-        if row.n:
-            groups.setdefault(group_label(row.feature, row.prompt_version), []).append(row)
-    return [_chart(title, rows) for title, rows in groups.items()]
 
 
 def _clip(text: str) -> str:
@@ -205,7 +154,8 @@ def _simulation_context(
         "r": result,
         "generated": datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
         "group_label": group_label,
-        "charts": _charts(result),
+        "marks": {"radius": charts.RADIUS, "cap": charts.CAP, "low_n": charts.LOW_N},
+        "charts": build_charts(result),
         "failures": [_failure(o) for o in failed[:_MAX_FAILURES]],
         "failure_count": len(failed),
     }

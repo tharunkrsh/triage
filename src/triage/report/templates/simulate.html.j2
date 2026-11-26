@@ -35,12 +35,26 @@ th, td { border-bottom: 1px solid var(--border); padding: 6px 10px; text-align: 
 th { background: var(--panel); font-weight: 600; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85em; white-space: pre-wrap; word-break: break-word; }
-svg { display: block; width: 100%; max-width: 640px; height: auto; }
+td.model { white-space: nowrap; }
+svg { display: block; width: 100%; height: auto; }
+svg.overall { max-width: 760px; }
 svg text { fill: var(--fg); font-size: 12px; }
-svg .axis { stroke: var(--border); }
-svg .bar { stroke: var(--muted); }
+svg text.tick, svg text.legend { fill: var(--muted); }
+svg text.label { paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
+svg .axis { stroke: var(--muted); stroke-opacity: 0.6; }
+svg .grid { stroke: var(--border); stroke-opacity: 0.6; }
+svg .whisker { stroke: var(--muted); stroke-width: 1.5; stroke-opacity: 0.7; }
+svg .whisker.low-n { stroke-opacity: 0.5; }
+svg .stem.low-n { stroke-dasharray: 4 3; }
+svg .step { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-opacity: 0.55; }
 svg circle { fill: var(--bg); stroke: var(--accent); stroke-width: 2; }
 svg circle.frontier { fill: var(--accent); }
+.slices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 12px; margin-top: 8px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.card h3 { margin: 0 0 4px; font-size: 0.95rem; }
+.card svg text.label { stroke: var(--panel); }
+.card svg circle.dominated { fill: var(--panel); }
+summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -61,43 +75,94 @@ svg circle.frontier { fill: var(--accent); }
 <thead><tr><th>Model</th><th>Pass rate</th><th class="num">Passes</th><th class="num">Errored</th><th class="num">Cost per task</th><th class="num">Cost per success</th><th>Pareto frontier</th></tr></thead>
 <tbody>
 {% for s in r.overall %}
-<tr><td>{{ s.model }}</td><td>{{ s.pass_rate | ci }}</td><td class="num">{{ s.passes | tokens }}</td><td class="num">{{ s.errored | tokens }}</td><td class="num">{{ s.projected_cost_per_task | usd_fine }}</td><td class="num">{{ s.cost_per_success | usd_fine }}</td><td>{{ "yes" if s.on_frontier else "no" }}</td></tr>
+<tr><td class="model">{{ s.model }}</td><td>{{ s.pass_rate | ci }}</td><td class="num">{{ s.passes | tokens }}</td><td class="num">{{ s.errored | tokens }}</td><td class="num">{{ s.projected_cost_per_task | usd_fine }}</td><td class="num">{{ s.cost_per_success | usd_fine }}</td><td>{{ "yes" if s.on_frontier else "no" }}</td></tr>
 {% endfor %}
 </tbody>
 </table></div>
 
+{% macro whisker(x, y_high, y_low, low_n) %}
+  <g class="whisker{{ ' low-n' if low_n }}">
+    <line class="stem{{ ' low-n' if low_n }}" x1="{{ x }}" y1="{{ y_high }}" x2="{{ x }}" y2="{{ y_low }}"/>
+    <line x1="{{ x - marks.cap }}" y1="{{ y_high }}" x2="{{ x + marks.cap }}" y2="{{ y_high }}"/>
+    <line x1="{{ x - marks.cap }}" y1="{{ y_low }}" x2="{{ x + marks.cap }}" y2="{{ y_low }}"/>
+  </g>
+{% endmacro %}
+{% macro plot(chart, kind) %}
+{% set f = chart.frame %}
+<svg class="{{ kind }}" viewBox="0 0 {{ f.width }} {{ f.height }}" role="img" aria-label="Cost against pass rate for {{ chart.title }}">
+{% if kind == "overall" %}
+  <circle class="frontier" cx="{{ f.left + 6 }}" cy="14" r="5"/>
+  <text class="legend" x="{{ f.left + 18 }}" y="18">Frontier</text>
+  <circle class="dominated" cx="{{ f.left + 100 }}" cy="14" r="5"/>
+  <text class="legend" x="{{ f.left + 112 }}" y="18">Dominated</text>
+  <path class="step" d="M {{ f.left + 208 }} 14 H {{ f.left + 232 }}"/>
+  <text class="legend" x="{{ f.left + 240 }}" y="18">Frontier step (at CI lower bound)</text>
+{{ whisker(f.left + 6, 27, 41, false) }}
+  <text class="legend" x="{{ f.left + 18 }}" y="38">95% Wilson CI</text>
+{{ whisker(f.left + 130, 27, 41, true) }}
+  <text class="legend" x="{{ f.left + 142 }}" y="38">Dashed: n &lt; {{ marks.low_n }}</text>
+{% endif %}
+{% for line in chart.grid %}
+  <line class="grid" data-percent="{{ line.percent }}" x1="{{ f.left }}" y1="{{ line.y }}" x2="{{ f.right }}" y2="{{ line.y }}"/>
+  <text class="tick" x="{{ f.left - 8 }}" y="{{ line.y + 4 }}" text-anchor="end">{{ line.percent }}%</text>
+{% endfor %}
+  <line class="axis" x1="{{ f.left }}" y1="{{ f.top }}" x2="{{ f.left }}" y2="{{ f.bottom }}"/>
+  <line class="axis" x1="{{ f.left }}" y1="{{ f.bottom }}" x2="{{ f.right }}" y2="{{ f.bottom }}"/>
+  <text class="tick" x="{{ f.x_min }}" y="{{ f.bottom + 18 }}" text-anchor="middle">$0</text>
+{% if chart.max_cost %}
+  <text class="tick" x="{{ f.right }}" y="{{ f.bottom + 18 }}" text-anchor="end">{{ chart.max_cost | usd_fine }}</text>
+{% endif %}
+  <text class="tick" x="{{ (f.left + f.right) / 2 }}" y="{{ f.bottom + 40 }}" text-anchor="middle">Projected cost per task</text>
+{% if chart.frontier_path %}
+  <path class="step" d="{{ chart.frontier_path }}"/>
+{% endif %}
+{% for p in chart.points %}
+{{ whisker(p.x, p.y_high, p.y_low, p.low_n) }}
+{% endfor %}
+{% for p in chart.points %}
+  <circle class="{{ 'frontier' if p.summary.on_frontier else 'dominated' }}" data-model="{{ p.summary.model }}" cx="{{ p.x }}" cy="{{ p.y }}" r="{{ marks.radius }}"><title>{{ p.summary.model }}: {{ p.summary.pass_rate | ci }}, {{ p.summary.projected_cost_per_task | usd_fine }} per task</title></circle>
+{% endfor %}
+{% for p in chart.points %}
+  <text class="label" x="{{ p.label.x }}" y="{{ p.label.y }}" text-anchor="{{ p.label.anchor }}">{{ p.summary.model }}</text>
+{% endfor %}
+</svg>
+{% endmacro %}
 <h2>Cost vs accuracy</h2>
-{% if charts %}
-<p class="note">Each point is a model's pass rate with its 95% interval. Filled points are on the Pareto frontier, which compares cost with the interval's lower bound.</p>
+{% if charts.overall %}
+<p class="note">Each point is a model's pass rate with its 95% interval. The Pareto frontier compares cost with the interval's lower bound; models with no passes are never on it.</p>
+<h3>Models overall</h3>
+{{ plot(charts.overall, "overall") }}
 {% else %}
 <p class="note">No graded tasks to plot.</p>
 {% endif %}
-{% for chart in charts %}
+{% if charts.slices %}
+{% if charts.collapse_slices %}
+<details>
+<summary>Charts by feature and prompt version ({{ charts.slices | length }}), collapsed because every slice has very few graded tasks</summary>
+{% else %}
+<h3>Charts by feature and prompt version</h3>
+{% endif %}
+<div class="slices">
+{% for chart in charts.slices %}
+<section class="card">
 <h3>{{ chart.title }}</h3>
-<svg viewBox="0 0 640 320" role="img" aria-label="Cost against pass rate for {{ chart.title }}">
-  <line class="axis" x1="60" y1="20" x2="60" y2="270"/>
-  <line class="axis" x1="60" y1="270" x2="600" y2="270"/>
-  <text x="52" y="24" text-anchor="end">100%</text>
-  <text x="52" y="149" text-anchor="end">50%</text>
-  <text x="52" y="274" text-anchor="end">0%</text>
-  <text x="60" y="290">$0</text>
-  <text x="600" y="290" text-anchor="end">{{ chart.max_cost | usd_fine }}</text>
-  <text x="330" y="310" text-anchor="middle">Projected cost per task</text>
-  {% for p in chart.points %}
-  <line class="bar" x1="{{ p.x }}" y1="{{ p.y_high }}" x2="{{ p.x }}" y2="{{ p.y_low }}"/>
-  <circle class="{{ 'frontier' if p.summary.on_frontier else 'dominated' }}" data-model="{{ p.summary.model }}" cx="{{ p.x }}" cy="{{ p.y }}" r="6"><title>{{ p.summary.model }}: {{ p.summary.pass_rate | ci }}, {{ p.summary.projected_cost_per_task | usd_fine }} per task</title></circle>
-  <text x="{{ p.x - 10 if p.x > 330 else p.x + 10 }}" y="{{ p.y + 4 + loop.index0 * 14 }}" text-anchor="{{ 'end' if p.x > 330 else 'start' }}">{{ p.summary.model }}</text>
-  {% endfor %}
-</svg>
+{{ plot(chart, "slice") }}
+</section>
 {% endfor %}
+</div>
+{% if charts.collapse_slices %}
+</details>
+{% endif %}
+{% endif %}
 
 <h2>By feature and prompt version</h2>
 {% if r.summaries %}
+<p class="note">Logged model is what production used for that slice, or <code>mixed</code> if it used several.</p>
 <div class="scroll"><table>
-<thead><tr><th>Feature / version</th><th>Model</th><th>Pass rate</th><th class="num">Errored</th><th class="num">Cost per task</th><th class="num">Cost per success</th><th>Agreement</th><th>Frontier</th><th>Baseline</th></tr></thead>
+<thead><tr><th>Feature / version</th><th>Model</th><th>Pass rate</th><th class="num">Errored</th><th class="num">Cost per task</th><th class="num">Cost per success</th><th>Agreement</th><th>Frontier</th><th>Logged model</th></tr></thead>
 <tbody>
 {% for s in r.summaries %}
-<tr><td>{{ group_label(s.feature, s.prompt_version) }}</td><td>{{ s.model }}</td><td>{{ s.pass_rate | ci }}</td><td class="num">{{ s.errored | tokens }}</td><td class="num">{{ s.projected_cost_per_task | usd_fine }}</td><td class="num">{{ s.cost_per_success | usd_fine }}</td><td>{{ s.agreement | ci }}</td><td>{{ "yes" if s.on_frontier else "no" }}</td><td>{{ "yes" if s.is_baseline else "no" }}</td></tr>
+<tr><td>{{ group_label(s.feature, s.prompt_version) }}</td><td class="model">{{ s.model }}</td><td>{{ s.pass_rate | ci }}</td><td class="num">{{ s.errored | tokens }}</td><td class="num">{{ s.projected_cost_per_task | usd_fine }}</td><td class="num">{{ s.cost_per_success | usd_fine }}</td><td>{{ s.agreement | ci }}</td><td>{{ "yes" if s.on_frontier else "no" }}</td><td class="model">{{ s.logged_model or "n/a" }}</td></tr>
 {% endfor %}
 </tbody>
 </table></div>

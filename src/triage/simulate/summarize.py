@@ -6,7 +6,7 @@ Money stays DECIMAL end to end: SQL returns exact sums and counts, and averages 
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Any
 
@@ -79,7 +79,7 @@ def _agreement(row: dict[str, Any]) -> WilsonInterval | None:
     return wilson_interval(row["agreed"], both) if both else None
 
 
-def _summary(row: dict[str, Any], *, is_baseline: bool = False) -> CandidateSummary:
+def _summary(row: dict[str, Any], *, logged_model: str | None = None) -> CandidateSummary:
     n, passes, successes = row["n"], row["passes"], row["successes"]
     return CandidateSummary(
         feature=row.get("feature"),
@@ -93,7 +93,7 @@ def _summary(row: dict[str, Any], *, is_baseline: bool = False) -> CandidateSumm
         projected_cost_per_task=_usd(row["projected"] / successes) if successes else Decimal(0),
         cost_per_success=_usd(row["graded_projected"] / passes) if passes else None,
         agreement=_agreement(row),
-        is_baseline=is_baseline,
+        logged_model=logged_model,
     )
 
 
@@ -115,14 +115,14 @@ def summarize_simulation(
     outcomes: Sequence[CandidateOutcome],
     *,
     targets: Sequence[str],
-    baselines: Collection[tuple[str | None, str | None, str]] = (),
+    logged_models: Mapping[tuple[str | None, str | None], str] | None = None,
     judge_model: str | None = None,
     judge_cost: Decimal = Decimal(0),
     source: str | None = None,
 ) -> SimulationResult:
     """Pass rates count graded tasks only; every target gets an `overall` row, even if empty.
 
-    `baselines` holds (feature, prompt_version, model) keys to flag as the incumbent model.
+    `logged_models` names the production model of each (feature, prompt_version) slice.
     """
     with duckdb.connect(":memory:") as con:
         con.execute(_CREATE)
@@ -144,11 +144,9 @@ def summarize_simulation(
             r["model"],
         )
     )
+    logged = logged_models or {}
     summaries = [
-        _summary(
-            row,
-            is_baseline=(row["feature"], row["prompt_version"], row["model"]) in baselines,
-        )
+        _summary(row, logged_model=logged.get((row["feature"], row["prompt_version"])))
         for row in groups
     ]
     overall = [_summary(models[m]) if m in models else _empty_summary(m) for m in targets]

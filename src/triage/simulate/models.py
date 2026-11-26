@@ -24,6 +24,7 @@ USD = Annotated[Decimal, BeforeValidator(_reject_float), Field(ge=0)]
 JsonObject = dict[str, JsonValue]
 CheckName = Literal["json_parse", "json_schema", "tool_call"]
 OutcomeStatus = Literal["succeeded", "errored", "expired", "canceled"]
+MIXED_MODELS = "mixed"  # a slice whose logged requests used more than one model
 
 
 class _Strict(BaseModel):
@@ -187,7 +188,7 @@ class CandidateSummary(_Strict):
     cost_per_success: USD | None
     agreement: WilsonInterval | None = None
     on_frontier: bool = False
-    is_baseline: bool = False
+    logged_model: str | None = None  # production model for the slice, or MIXED_MODELS
 
 
 # --------------------------------------------------------------------------- cost + result
