@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="64" viewBox="0 0 256 64" role="img" aria-labelledby="t">
+  <title id="t">triage</title>
+  <path d="M8 6 H23 V22 H41 V38 H56" fill="none" stroke="#0969da" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="8" y="13" width="12" height="43" rx="2" fill="#c8d1da"/>
+  <rect x="26" y="29" width="12" height="27" rx="2" fill="#0969da"/>
+  <rect x="44" y="45" width="12" height="11" rx="2" fill="#1f2328"/>
+  <text x="70" y="50" fill="#1f2328" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="38" font-weight="600" letter-spacing="-0.5">triage</text>
+</svg>

@@ -16,9 +16,9 @@ from rich.table import Table
 
 from triage import __version__
 from triage.audit import AuditResult, run_audit
-from triage.ingest import ADAPTERS, IngestError, IngestResult, load
+from triage.ingest import ADAPTERS, IngestError, IngestResult, load, resolve_inputs
 from triage.ingest.base import IngestIssue
-from triage.ingest.jsonl import read_replays
+from triage.ingest.replay import load_replays
 from triage.pricing import PricingTable, UnknownModelError
 from triage.report.builder import render_html, render_markdown, tokens, usd
 
@@ -50,12 +50,14 @@ def main(
     """triage: Claude API spend auditor."""
 
 
-def _summary_table(path: Path, result: IngestResult) -> Table:
+def _summary_table(source: str, result: IngestResult) -> Table:
     records = result.records
-    table = Table(title=f"Ingest preview: {path.name}", show_header=False)
+    table = Table(title=f"Ingest preview: {escape(source)}", show_header=False)
     table.add_column(style="bold")
     table.add_column()
     table.add_row("Format", result.source_format)
+    if result.file_count > 1:
+        table.add_row("Files", f"{result.file_count:,}")
     table.add_row("Rows", f"{len(records):,}")
     table.add_row("Kind", "aggregated report rows" if result.aggregated else "per-request")
     if (span := result.time_range) is not None:
@@ -83,26 +85,39 @@ _FormatOption = Annotated[
     typer.Option("--format", help=f"Override auto-detection: {', '.join(ADAPTERS)}."),
 ]
 _StrictOption = Annotated[bool, typer.Option("--strict", help="Fail on the first invalid row.")]
+# A str, so that glob patterns reach `resolve_inputs` untouched.
+_UsagePath = Annotated[
+    str,
+    typer.Argument(
+        metavar="PATH",
+        help="Usage log or Console export: a file, a folder (searched for JSONL) or a glob.",
+    ),
+]
+
+
+def _out_dir(output_dir: Path | None) -> Path:
+    return output_dir.expanduser() if output_dir else Path.cwd()
 
 
 @app.command()
 def ingest(
-    file: Annotated[Path, typer.Argument(help="Canonical JSONL log or Console usage export.")],
+    path: _UsagePath,
     fmt: _FormatOption = None,
     strict: _StrictOption = False,
 ) -> None:
-    """Parse a usage file and preview what triage sees in it."""
+    """Parse usage logs and preview what triage sees in them."""
     try:
-        result = load(file, fmt=fmt, strict=strict)
-    except IngestError as exc:
+        source = resolve_inputs(path).label
+        result = load(path, fmt=fmt, strict=strict)
+    except (IngestError, ValueError) as exc:
         raise _fail(str(exc)) from exc
 
-    console.print(_summary_table(file, result))
+    console.print(_summary_table(source, result))
     _print_issues(result.issues)
 
 
-def _audit_table(path: Path, audit_result: AuditResult) -> Table:
-    table = Table(title=f"Audit: {path.name}", show_header=False)
+def _audit_table(source: str, audit_result: AuditResult) -> Table:
+    table = Table(title=f"Audit: {escape(source)}", show_header=False)
     table.add_column(style="bold")
     table.add_column(justify="right")
     table.add_row("Total spend", usd(audit_result.total_spend))
@@ -116,7 +131,7 @@ def _audit_table(path: Path, audit_result: AuditResult) -> Table:
 
 @app.command()
 def audit(
-    file: Annotated[Path, typer.Argument(help="Canonical JSONL log or Console usage export.")],
+    path: _UsagePath,
     output_dir: Annotated[
         Path | None,
         typer.Option("--output-dir", "-o", help="Where to write the reports (default: cwd)."),
@@ -126,19 +141,20 @@ def audit(
 ) -> None:
     """Detect spend bleed offline and write Markdown + HTML reports. Makes no API calls."""
     try:
-        ingested = load(file, fmt=fmt, strict=strict)
+        source = resolve_inputs(path).label
+        ingested = load(path, fmt=fmt, strict=strict)
         result = run_audit(ingested.records, PricingTable.load())
     except (IngestError, UnknownModelError, ValueError) as exc:
         raise _fail(str(exc)) from exc
 
     _print_issues(ingested.issues)
-    out = output_dir or Path.cwd()
+    out = _out_dir(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     md_path, html_path = out / f"{REPORT_STEM}.md", out / f"{REPORT_STEM}.html"
-    md_path.write_text(render_markdown(result, source=file.name), encoding="utf-8")
-    html_path.write_text(render_html(result, source=file.name), encoding="utf-8")
+    md_path.write_text(render_markdown(result, source=source), encoding="utf-8")
+    html_path.write_text(render_html(result, source=source), encoding="utf-8")
 
-    console.print(_audit_table(file, result))
+    console.print(_audit_table(source, result))
     # Plain echo so long paths are never wrapped mid-name.
     typer.echo(f"Wrote {md_path}")
     typer.echo(f"Wrote {html_path}")
@@ -149,7 +165,13 @@ def audit(
 
 @app.command()
 def simulate(
-    file: Annotated[Path, typer.Argument(help="Canonical JSONL with prompts and responses.")],
+    path: Annotated[
+        str,
+        typer.Argument(
+            metavar="PATH",
+            help="Canonical JSONL with prompts and responses: a file, folder or glob.",
+        ),
+    ],
     target: Annotated[
         list[str],
         typer.Option("--target", "-t", "-m", help="Candidate model; repeat to compare several."),
@@ -189,9 +211,10 @@ def simulate(
         pricing = PricingTable.load()
         targets = batch.resolve_targets(target, pricing)
         judge = None if no_judge else pricing.resolve(judge_model)
-        replays = read_replays(file)
+        source = resolve_inputs(path).label
+        replays = load_replays(path)
         _print_issues(replays.issues)
-        tasks = cli_helpers.select_tasks(replays.tasks, file, sample=sample, seed=seed)
+        tasks = cli_helpers.select_tasks(replays.tasks, source, sample=sample, seed=seed)
         if len(tasks) < len(replays.tasks):
             console.print(f"Sampled {len(tasks):,} of {len(replays.tasks):,} tasks (seed {seed}).")
         cost = estimate.estimate_cost(tasks, targets, pricing, judge_model=judge)
@@ -206,7 +229,7 @@ def simulate(
     if not yes and sys.stdin.isatty():
         typer.confirm("Submit these requests to the paid Batch API?", abort=True)
 
-    out = output_dir or Path.cwd()
+    out = _out_dir(output_dir)
     try:
         out.mkdir(parents=True, exist_ok=True)  # fail on a bad path before spending
         client = batch.create_client()
@@ -232,7 +255,7 @@ def simulate(
         logged_models=cli_helpers.logged_models(tasks, pricing),
         judge_model=judge,
         judge_cost=judge_cost,
-        source=file.name,
+        source=source,
     )
     md_path, html_path = cli_helpers.write_reports(result, outcomes, out)
 
@@ -253,3 +276,10 @@ def simulate(
         )
     if below:
         raise typer.Exit(1)
+
+
+def run() -> None:
+    """Console-script entry point."""
+    # Click would otherwise expand globs and `~` itself on Windows, turning one quoted
+    # pattern into many arguments before `resolve_inputs` could see it.
+    app(windows_expand_args=False)
