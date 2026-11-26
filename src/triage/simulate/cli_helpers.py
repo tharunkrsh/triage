@@ -38,7 +38,7 @@ REPORT_STEM = "triage-simulate"
 
 
 def select_tasks(
-    tasks: Sequence[ReplayTask], source: Path, *, sample: int | None, seed: int
+    tasks: Sequence[ReplayTask], source: Path | str, *, sample: int | None, seed: int
 ) -> list[ReplayTask]:
     """Validate the loaded tasks and apply `--sample`, keeping file order."""
     if not tasks:

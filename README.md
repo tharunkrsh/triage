@@ -1,9 +1,15 @@
-# triage
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.svg">
+    <img alt="triage" src="docs/logo-light.svg" width="260">
+  </picture>
+</h1>
 
 Find where your Claude API spend is leaking, then test whether a cheaper model can do the job,
 using the logs you already have.
 
-- **`triage audit`** reads usage logs or Anthropic Console exports and flags waste: repeated
+- **`triage audit`** reads usage logs, Anthropic Console exports or Claude Code session logs
+  and flags waste: repeated
   prompts sent uncached, requests over a long-context price cliff, oversized `max_tokens`, and
   spend concentration. It runs offline, makes no API calls and needs no prompt text.
 - **`triage simulate`** replays logged single-turn requests against other Claude models through
@@ -74,13 +80,42 @@ savings opportunities. Estimated savings cover uncached repeats and cliff crossi
 `max_tokens` findings are reported without a dollar figure.
 
 `triage ingest <file>` previews how a file will be parsed. `--format` overrides auto-detection
-(`console-csv`, `console-json`, `jsonl`) and `--strict` fails on the first invalid row.
+(`console-csv`, `console-json`, `jsonl`, `claude-code`) and `--strict` fails on the first
+invalid row.
+
+### Audit Claude Code usage
+
+Claude Code keeps a JSONL log of every session under `~/.claude/projects/`. Point `audit` at
+that folder to see what your own Claude Code sessions cost:
+
+```bash
+uv run triage audit "~/.claude/projects" -o reports/
+```
+
+- Each session is tagged with a project taken from the folder it ran in (Claude Code
+  worktrees count as their repository). Sessions started in your home directory are tagged
+  `(home)`, so your user name never shows up in a report.
+- Subagent sessions are included, and a response logged on several lines is counted once.
+- Totals are a **lower bound**: Claude Code deletes old session logs, so only sessions still on
+  disk are counted, and responses from models missing from `pricing.yaml` are skipped with a
+  warning.
+- Only token usage is read; prompt and response text never goes into a record.
+
+### Folders and globs
+
+`ingest`, `audit` and `simulate` all take a single file, a folder (searched recursively for
+`.jsonl` and `.ndjson` files) or a glob pattern, including `**`:
+
+```bash
+uv run triage audit logs/                         # every JSONL file under logs/
+uv run triage audit "logs/2026-11-*.jsonl"        # quote globs so the shell leaves them alone
+uv run triage simulate "replays/**/*.jsonl" -t haiku-5-5 --dry-run
+```
 
 ### Estimate a simulation (`--dry-run`, free)
 
 ```bash
-uv run triage simulate tests/fixtures/simulate/replay.jsonl \
-  --target haiku-5-5 --target sonnet-5-5 --dry-run
+uv run triage simulate tests/fixtures/simulate/replay.jsonl -t claude-haiku-5-5 -t claude-sonnet-5-5 --dry-run
 ```
 
 ```text
@@ -100,6 +135,17 @@ Dry run: nothing was submitted.
 A dry run needs no API key. The fixture deliberately includes invalid rows, so you will also
 see warnings for the lines that were skipped. The upper bound assumes every response runs to
 `max_tokens`; input token counts are still estimates.
+
+<details>
+<summary>Sample simulation report</summary>
+
+![triage simulation HTML report](docs/simulate-report.png)
+
+*Excerpt of the HTML report for a 30-task synthetic replay set. The model outputs and judge
+verdicts are synthetic too, served by a local stand-in for the Batch API, so they are not real
+model results.*
+
+</details>
 
 ### Run it (paid)
 
@@ -197,7 +243,7 @@ from the pass rate. Reports also show how often the deterministic checks and the
 | Module | Responsibility |
 | --- | --- |
 | `cli.py` | Typer commands: `ingest`, `audit`, `simulate` |
-| `ingest/` | Console CSV/JSON and JSONL adapters |
+| `ingest/` | Console CSV/JSON, JSONL and Claude Code adapters; file, folder and glob inputs |
 | `pricing.py` | Loads `pricing.yaml` and computes per-request cost |
 | `audit/` | Bleed detection in DuckDB SQL |
 | `simulate/` | Cost estimate, batch submission, graders, statistics, summaries |

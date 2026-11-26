@@ -29,6 +29,7 @@ class IngestResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     source_format: str
+    file_count: int = 1
     records: list[UsageRecord] = Field(default_factory=list)
     issues: list[IngestIssue] = Field(default_factory=list)
 

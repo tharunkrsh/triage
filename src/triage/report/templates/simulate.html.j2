@@ -35,7 +35,7 @@ th, td { border-bottom: 1px solid var(--border); padding: 6px 10px; text-align: 
 th { background: var(--panel); font-weight: 600; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85em; white-space: pre-wrap; word-break: break-word; }
-td.model { white-space: nowrap; }
+td.model, td.ci { white-space: nowrap; }
 svg { display: block; width: 100%; height: auto; }
 svg.overall { max-width: 760px; }
 svg text { fill: var(--fg); font-size: 12px; }
@@ -75,7 +75,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; margin-top: 1
 <thead><tr><th>Model</th><th>Pass rate</th><th class="num">Passes</th><th class="num">Errored</th><th class="num">Cost per task</th><th class="num">Cost per success</th><th>Pareto frontier</th></tr></thead>
 <tbody>
 {% for s in r.overall %}
-<tr><td class="model">{{ s.model }}</td><td>{{ s.pass_rate | ci }}</td><td class="num">{{ s.passes | tokens }}</td><td class="num">{{ s.errored | tokens }}</td><td class="num">{{ s.projected_cost_per_task | usd_fine }}</td><td class="num">{{ s.cost_per_success | usd_fine }}</td><td>{{ "yes" if s.on_frontier else "no" }}</td></tr>
+<tr><td class="model">{{ s.model }}</td><td class="ci">{{ s.pass_rate | ci }}</td><td class="num">{{ s.passes | tokens }}</td><td class="num">{{ s.errored | tokens }}</td><td class="num">{{ s.projected_cost_per_task | usd_fine }}</td><td class="num">{{ s.cost_per_success | usd_fine }}</td><td>{{ "yes" if s.on_frontier else "no" }}</td></tr>
 {% endfor %}
 </tbody>
 </table></div>
@@ -162,7 +162,7 @@ summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; margin-top: 1
 <thead><tr><th>Feature / version</th><th>Model</th><th>Pass rate</th><th class="num">Errored</th><th class="num">Cost per task</th><th class="num">Cost per success</th><th>Agreement</th><th>Frontier</th><th>Logged model</th></tr></thead>
 <tbody>
 {% for s in r.summaries %}
-<tr><td>{{ group_label(s.feature, s.prompt_version) }}</td><td class="model">{{ s.model }}</td><td>{{ s.pass_rate | ci }}</td><td class="num">{{ s.errored | tokens }}</td><td class="num">{{ s.projected_cost_per_task | usd_fine }}</td><td class="num">{{ s.cost_per_success | usd_fine }}</td><td>{{ s.agreement | ci }}</td><td>{{ "yes" if s.on_frontier else "no" }}</td><td class="model">{{ s.logged_model or "n/a" }}</td></tr>
+<tr><td>{{ group_label(s.feature, s.prompt_version) }}</td><td class="model">{{ s.model }}</td><td class="ci">{{ s.pass_rate | ci }}</td><td class="num">{{ s.errored | tokens }}</td><td class="num">{{ s.projected_cost_per_task | usd_fine }}</td><td class="num">{{ s.cost_per_success | usd_fine }}</td><td class="ci">{{ s.agreement | ci }}</td><td>{{ "yes" if s.on_frontier else "no" }}</td><td class="model">{{ s.logged_model or "n/a" }}</td></tr>
 {% endfor %}
 </tbody>
 </table></div>

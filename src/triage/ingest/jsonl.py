@@ -60,7 +60,7 @@ def _hash_system(system: Any) -> str:
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _from_usage(usage: dict[str, Any]) -> dict[str, Any]:
+def from_usage(usage: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {k: usage[k] for k in _USAGE_TOKEN_KEYS if usage.get(k) is not None}
     split = usage.get("cache_creation")
     if isinstance(split, dict):
@@ -80,7 +80,7 @@ def map_line(obj: dict[str, Any]) -> tuple[dict[str, Any], set[str]]:
     row: dict[str, Any] = {}
     usage = obj.pop("usage", None)
     if isinstance(usage, dict):
-        row.update(_from_usage(usage))
+        row.update(from_usage(usage))
     system = obj.pop("system", None)
     if system is not None and "system_prompt_hash" not in obj:
         row["system_prompt_hash"] = _hash_system(system)
@@ -98,11 +98,11 @@ def map_line(obj: dict[str, Any]) -> tuple[dict[str, Any], set[str]]:
     return row, unknown
 
 
-def _iter_objects(
-    path: Path, issue: Callable[[str, str], None]
+def iter_objects(
+    path: Path, issue: Callable[[str, str], None], *, errors: str = "strict"
 ) -> Iterator[tuple[str, dict[str, Any]]]:
     """Yield (location, object) per non-blank line, reporting unparseable lines via `issue`."""
-    with path.open(encoding="utf-8-sig") as fh:
+    with path.open(encoding="utf-8-sig", errors=errors) as fh:
         for lineno, line in enumerate(fh, start=1):
             if not line.strip():
                 continue
@@ -132,7 +132,7 @@ class JsonlAdapter:
 
     def read(self, path: Path, *, strict: bool = False) -> IngestResult:
         rows = RowCollector(NAME, strict=strict)
-        for loc, obj in _iter_objects(path, rows.issue):
+        for loc, obj in iter_objects(path, rows.issue):
             row, unknown = map_line(obj)
             rows.ignore(unknown)
             rows.add(loc, row)
@@ -149,7 +149,7 @@ class ReplayIngestResult(BaseModel):
     issues: list[IngestIssue] = Field(default_factory=list)
 
 
-def _map_replay(obj: dict[str, Any], loc: str) -> tuple[ReplayTask, set[str]]:
+def _map_replay(obj: dict[str, Any], loc: str, id_prefix: str = "") -> tuple[ReplayTask, set[str]]:
     baseline_model = obj.get("baseline_model") or obj.get("model")
     if not isinstance(baseline_model, str) or not baseline_model:
         raise ValueError("missing baseline_model (or model)")
@@ -167,7 +167,8 @@ def _map_replay(obj: dict[str, Any], loc: str) -> tuple[ReplayTask, set[str]]:
     if any(k in row for k in _TOKEN_FIELDS):
         usage = UsageRecord.model_validate({**row, "model": baseline_model})
 
-    task_id = obj.get("task_id") or obj.get("request_id") or obj.get("id") or loc.replace(" ", "-")
+    explicit = obj.get("task_id") or obj.get("request_id") or obj.get("id")
+    task_id = explicit or id_prefix + loc.replace(" ", "-")
     task = ReplayTask.model_validate(
         {
             "task_id": str(task_id),
@@ -193,8 +194,13 @@ def map_replay(obj: dict[str, Any], *, loc: str) -> ReplayTask:
     return _map_replay(obj, loc)[0]
 
 
-def read_replays(path: Path | str, *, strict: bool = False) -> ReplayIngestResult:
-    """Load replayable single-turn tasks; bad lines become issues (or raise when strict)."""
+def read_replays(
+    path: Path | str, *, strict: bool = False, id_prefix: str = ""
+) -> ReplayIngestResult:
+    """Load replayable single-turn tasks; bad lines become issues (or raise when strict).
+
+    `id_prefix` goes before generated line-number task ids, to keep them unique across files.
+    """
     tasks: list[ReplayTask] = []
     issues: list[IngestIssue] = []
     ignored: set[str] = set()
@@ -204,9 +210,9 @@ def read_replays(path: Path | str, *, strict: bool = False) -> ReplayIngestResul
             raise IngestError(f"{loc}: {message}" if loc else message)
         issues.append(IngestIssue(location=loc, message=message))
 
-    for loc, obj in _iter_objects(Path(path), issue):
+    for loc, obj in iter_objects(Path(path), issue):
         try:
-            task, unknown = _map_replay(obj, loc)
+            task, unknown = _map_replay(obj, loc, id_prefix)
         except ValidationError as exc:
             issue(loc, _summarise(exc))
             continue
