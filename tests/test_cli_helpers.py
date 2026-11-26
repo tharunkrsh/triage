@@ -112,16 +112,30 @@ def test_select_tasks_seed_changes_the_subset():
 # --------------------------------------------------------------------------- baseline + announce
 
 
-def test_baseline_keys_resolve_aliases_and_skip_unpriced_models():
+def test_logged_models_names_one_model_per_slice_and_resolves_aliases():
     tasks = [
         make_task("a", baseline_model="opus-5-5"),
         make_task("b", baseline_model="claude-opus-5-5"),
-        make_task("c", baseline_model="some-unpriced-model", feature="other"),
+        make_task("c", baseline_model="claude-haiku-5-5", prompt_version="v2"),
+        make_task("d", baseline_model="some-unpriced-model", feature=None),
     ]
 
-    keys = cli_helpers.baseline_keys(tasks, PricingTable.load())
+    logged = cli_helpers.logged_models(tasks, PricingTable.load())
 
-    assert keys == {("summarise", "v1", "claude-opus-5-5")}
+    assert logged == {
+        ("summarise", "v1"): "claude-opus-5-5",
+        ("summarise", "v2"): "claude-haiku-5-5",
+        (None, "v1"): "some-unpriced-model",
+    }
+
+
+@pytest.mark.parametrize("other", ["claude-haiku-5-5", "some-unpriced-model"])
+def test_logged_models_reports_a_slice_with_several_models_as_mixed(other):
+    tasks = [make_task("a"), make_task("b", baseline_model=other)]
+
+    logged = cli_helpers.logged_models(tasks, PricingTable.load())
+
+    assert logged == {("summarise", "v1"): "mixed"}
 
 
 def test_announce_prints_the_batch_id(capsys):

@@ -157,21 +157,21 @@ def test_all_errored_group_is_empty_evidence():
     assert row.on_frontier is False
 
 
-def test_frontier_and_baseline_flags():
+def test_frontier_flags_and_logged_model_per_slice():
     outcomes = [
         *_graded(HAIKU, 5, 5, projected="0.01"),
         *_graded(SONNET, 3, 5, projected="0.05"),  # dearer and worse
     ]
 
     result = summarize_simulation(
-        outcomes, targets=[HAIKU, SONNET], baselines=[("summarise", "v1", SONNET)]
+        outcomes, targets=[HAIKU, SONNET], logged_models={("summarise", "v1"): OPUS}
     )
 
     assert _one(result.summaries, HAIKU, "summarise").on_frontier is True
     assert _one(result.summaries, SONNET, "summarise").on_frontier is False
     assert _one(result.overall, HAIKU).on_frontier is True
-    assert _one(result.summaries, SONNET, "summarise").is_baseline is True
-    assert _one(result.summaries, HAIKU, "summarise").is_baseline is False
+    assert [row.logged_model for row in result.summaries] == [OPUS, OPUS]
+    assert [row.logged_model for row in result.overall] == [None, None]
 
 
 def test_agreement_compares_judge_with_deterministic_grades():
@@ -314,8 +314,8 @@ def test_html_is_self_contained():
 
 
 def _points(html: str) -> dict[str, tuple[float, float]]:
-    """`data-model` -> (cx, cy) for the plotted circles of the single inline SVG."""
-    (svg,) = re.findall(r"<svg\b.*?</svg>", html, re.DOTALL)
+    """`data-model` -> (cx, cy) for the plotted circles of the overall chart."""
+    (svg,) = re.findall(r'<svg class="overall".*?</svg>', html, re.DOTALL)
     found = {}
     for element in ElementTree.fromstring(svg).iter():
         if element.tag.rsplit("}", 1)[-1] == "circle" and "data-model" in element.attrib:

@@ -58,11 +58,11 @@ def mark_frontier(summaries: Sequence[CandidateSummary]) -> list[CandidateSummar
     """Copies of `summaries` with `on_frontier` set within each (feature, prompt_version).
 
     Accuracy is the Wilson lower bound (conservative); cost is projected cost per task.
-    Rows with n == 0 carry no evidence and are never on the frontier.
+    Rows without a single pass (including n == 0) are never on the frontier.
     """
     groups: dict[tuple[str | None, str | None], list[_Point]] = defaultdict(list)
     for i, s in enumerate(summaries):
-        if s.n > 0:
+        if s.passes > 0:
             point = _Point(s.projected_cost_per_task, s.pass_rate.low, i)
             groups[(s.feature, s.prompt_version)].append(point)
     on_frontier = {p.index for pts in groups.values() for p in pareto_frontier(pts)}

@@ -22,13 +22,13 @@ Pass rates show 95% Wilson intervals over graded tasks. Errored, expired and can
 
 ## By feature and prompt version
 
-The frontier compares cost per task with the lower bound of the pass-rate interval.
+The frontier compares cost per task with the lower bound of the pass-rate interval; models with no passes are never on it. Logged model is what production used for that slice, or `mixed` if it used several.
 
 {% if r.summaries %}
-| Feature / version | Model | Pass rate | Errored | Cost per task | Cost per success | Agreement | Frontier | Baseline |
+| Feature / version | Model | Pass rate | Errored | Cost per task | Cost per success | Agreement | Frontier | Logged model |
 |---|---|---|---:|---:|---:|---|---|---|
 {% for s in r.summaries %}
-| {{ group_label(s.feature, s.prompt_version) | md }} | {{ s.model | md }} | {{ s.pass_rate | ci }} | {{ s.errored | tokens }} | {{ s.projected_cost_per_task | usd_fine }} | {{ s.cost_per_success | usd_fine }} | {{ s.agreement | ci }} | {{ "yes" if s.on_frontier else "no" }} | {{ "yes" if s.is_baseline else "no" }} |
+| {{ group_label(s.feature, s.prompt_version) | md }} | {{ s.model | md }} | {{ s.pass_rate | ci }} | {{ s.errored | tokens }} | {{ s.projected_cost_per_task | usd_fine }} | {{ s.cost_per_success | usd_fine }} | {{ s.agreement | ci }} | {{ "yes" if s.on_frontier else "no" }} | {{ (s.logged_model or "n/a") | md_text }} |
 {% endfor %}
 {% else %}
 No replay outcomes.

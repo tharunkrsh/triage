@@ -132,7 +132,7 @@ def test_frontier_drops_dominated_and_keeps_order():
     assert [p.name for p in pareto_frontier(pts)] == ["good", "cheap", "tie-a", "tie-b"]
 
 
-def _summary(model, cost, k, n, *, feature="f", version="v1", baseline=False):
+def _summary(model, cost, k, n, *, feature="f", version="v1", logged=None):
     return CandidateSummary(
         feature=feature,
         prompt_version=version,
@@ -143,7 +143,7 @@ def _summary(model, cost, k, n, *, feature="f", version="v1", baseline=False):
         sim_cost=Decimal("0"),
         projected_cost_per_task=Decimal(cost),
         cost_per_success=None,
-        is_baseline=baseline,
+        logged_model=logged,
     )
 
 
@@ -175,9 +175,9 @@ def test_mark_frontier_excludes_empty_rows_and_returns_copies():
     assert real.on_frontier is False  # input not mutated
 
 
-def test_mark_frontier_includes_baseline_reference():
-    base = _summary("opus", "10", 10, 10, baseline=True)
+def test_mark_frontier_keeps_the_logged_model():
+    base = _summary("opus", "10", 10, 10, logged="opus")
     cand = _summary("haiku", "1", 7, 10)
     out = mark_frontier([base, cand])
     assert all(s.on_frontier for s in out)
-    assert out[0].is_baseline
+    assert out[0].logged_model == "opus"
