@@ -1,4 +1,3 @@
-SPEC.md
 # triage — Product Specification (v1)
 
 ## 1. Overview

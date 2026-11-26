@@ -19,7 +19,7 @@ Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 Install the `triage` command from GitHub:
 
 ```bash
-uv tool install git+https://github.com/tharunkrsh/tokenize.git
+uv tool install git+https://github.com/tharunkrsh/triage.git
 triage --help
 ```
 
@@ -28,7 +28,7 @@ Use the Git URL: the `triage` package on PyPI is an unrelated project.
 Or run it from a clone, which is also how to try the examples below:
 
 ```bash
-git clone https://github.com/tharunkrsh/tokenize.git triage
+git clone https://github.com/tharunkrsh/triage.git
 cd triage
 uv run triage --help
 ```

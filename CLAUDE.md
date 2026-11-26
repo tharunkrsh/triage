@@ -1,8 +1,3 @@
----
-
-## 3. `CLAUDE.md`
-
-```markdown
 # CLAUDE.md — Project Rules for `triage`
 
 ## Stack & Commands

@@ -1,4 +1,3 @@
-ARCHITECTURE.md
 # triage — System Architecture
 
 ## 1. Tech Stack
@@ -44,3 +43,4 @@ triage/
 └── tests/
     ├── fixtures/                # Sample JSONL + Console CSV files
     └── ...
+```
