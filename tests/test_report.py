@@ -8,12 +8,12 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import AUDIT_FIXTURES
-from tokenize_cli.audit import run_audit
-from tokenize_cli.ingest import load
-from tokenize_cli.models import UsageRecord
-from tokenize_cli.report.builder import render_html, render_markdown
+from triage.audit import run_audit
+from triage.ingest import load
+from triage.models import UsageRecord
+from triage.report.builder import render_html, render_markdown
 
-TEMPLATES = Path(__file__).resolve().parents[1] / "src" / "tokenize_cli" / "report" / "templates"
+TEMPLATES = Path(__file__).resolve().parents[1] / "src" / "triage" / "report" / "templates"
 _VOID = {
     "area",
     "base",

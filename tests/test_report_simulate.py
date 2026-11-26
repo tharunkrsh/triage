@@ -9,10 +9,10 @@ import duckdb
 import pytest
 
 from tests.simulate_fakes import make_outcome
-from tokenize_cli.report import builder
-from tokenize_cli.report.builder import render_simulation_html, render_simulation_markdown
-from tokenize_cli.simulate.stats import wilson_interval
-from tokenize_cli.simulate.summarize import summarize_simulation
+from triage.report import builder
+from triage.report.builder import render_simulation_html, render_simulation_markdown
+from triage.simulate.stats import wilson_interval
+from triage.simulate.summarize import summarize_simulation
 
 SONNET = "claude-sonnet-5-5"
 HAIKU = "claude-haiku-5-5"

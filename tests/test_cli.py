@@ -1,8 +1,8 @@
 from typer.testing import CliRunner
 
 from tests.conftest import FIXTURES
-from tokenize_cli import __version__
-from tokenize_cli.cli import app
+from triage import __version__
+from triage.cli import app
 
 runner = CliRunner()
 

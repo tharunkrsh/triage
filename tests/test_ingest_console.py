@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 import pytest
 
 from tests.conftest import FIXTURES
-from tokenize_cli.ingest import IngestError, load
-from tokenize_cli.ingest.anthropic_csv import map_row
+from triage.ingest import IngestError, load
+from triage.ingest.anthropic_csv import map_row
 
 DIR = FIXTURES / "ingest"
 

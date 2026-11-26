@@ -4,7 +4,7 @@ Response objects are pydantic models, like the SDK's, so code under test may use
 access or `model_dump()`. Nothing here imports `anthropic` or touches the network.
 
 Seam contract: production code builds its client only through
-`tokenize_cli.simulate.batch.create_client`, looked up on the module at call time, and
+`triage.simulate.batch.create_client`, looked up on the module at call time, and
 `create_client` imports `anthropic` lazily.
 """
 
@@ -21,8 +21,8 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-from tokenize_cli.models import UsageRecord
-from tokenize_cli.simulate.models import (
+from triage.models import UsageRecord
+from triage.simulate.models import (
     CandidateOutcome,
     DeterministicResult,
     JudgeVerdict,
@@ -227,7 +227,7 @@ def install_client(monkeypatch: pytest.MonkeyPatch, client: FakeAnthropic) -> li
         constructed.append(client)
         return client
 
-    monkeypatch.setattr("tokenize_cli.simulate.batch.create_client", factory)
+    monkeypatch.setattr("triage.simulate.batch.create_client", factory)
     return constructed
 
 
@@ -246,7 +246,7 @@ def forbid_client(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     module.Anthropic = explode("anthropic.Anthropic")
     module.AsyncAnthropic = explode("anthropic.AsyncAnthropic")
     monkeypatch.setitem(sys.modules, "anthropic", module)
-    monkeypatch.setattr("tokenize_cli.simulate.batch.create_client", explode("create_client"))
+    monkeypatch.setattr("triage.simulate.batch.create_client", explode("create_client"))
     return attempts
 
 

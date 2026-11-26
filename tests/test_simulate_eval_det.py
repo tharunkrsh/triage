@@ -2,7 +2,7 @@
 
 import pytest
 
-from tokenize_cli.simulate.eval_det import (
+from triage.simulate.eval_det import (
     InvalidSchemaError,
     check_json_parse,
     check_schema,
@@ -11,7 +11,7 @@ from tokenize_cli.simulate.eval_det import (
     extract_json,
     validate_schema,
 )
-from tokenize_cli.simulate.models import ReplayTask, ResponseContent, ToolCall
+from triage.simulate.models import ReplayTask, ResponseContent, ToolCall
 
 PERSON = {
     "type": "object",

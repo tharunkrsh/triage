@@ -22,11 +22,11 @@ from tests.simulate_fakes import (
     text_block,
     tool_block,
 )
-from tokenize_cli.models import UsageRecord
-from tokenize_cli.pricing import PricingTable, UnknownModelError
-from tokenize_cli.simulate import batch
-from tokenize_cli.simulate.batch import DEFAULT_MAX_TOKENS, build_batch_requests, run_replay
-from tokenize_cli.simulate.estimate import estimate_cost
+from triage.models import UsageRecord
+from triage.pricing import PricingTable, UnknownModelError
+from triage.simulate import batch
+from triage.simulate.batch import DEFAULT_MAX_TOKENS, build_batch_requests, run_replay
+from triage.simulate.estimate import estimate_cost
 
 SONNET = "claude-sonnet-5-5"
 HAIKU = "claude-haiku-5-5"

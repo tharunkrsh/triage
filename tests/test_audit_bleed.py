@@ -1,4 +1,4 @@
-"""Milestone 3 bleed detectors (`tokenize_cli.audit.run_audit`, DuckDB-backed).
+"""Milestone 3 bleed detectors (`triage.audit.run_audit`, DuckDB-backed).
 
 All thresholds come from the `audit:` section of pricing.yaml (fixture: pricing_m3.yaml).
 Money is compared as floats with a tight absolute tolerance so the implementation is free to
@@ -12,10 +12,10 @@ import pytest
 from pydantic import BaseModel
 
 from tests.conftest import AUDIT_FIXTURES, M3_PRICING, TEST_PRICING
-from tokenize_cli.audit import run_audit
-from tokenize_cli.ingest import load
-from tokenize_cli.models import UsageRecord
-from tokenize_cli.pricing import PricingTable
+from triage.audit import run_audit
+from triage.ingest import load
+from triage.models import UsageRecord
+from triage.pricing import PricingTable
 
 T0 = datetime(2026, 10, 1, 9, 0, tzinfo=UTC)
 _ids = iter(range(1_000_000))

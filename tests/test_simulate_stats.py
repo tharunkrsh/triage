@@ -5,8 +5,8 @@ from decimal import Decimal
 
 import pytest
 
-from tokenize_cli.simulate.models import CandidateSummary
-from tokenize_cli.simulate.stats import (
+from triage.simulate.models import CandidateSummary
+from triage.simulate.stats import (
     Z_95,
     dominates,
     mark_frontier,

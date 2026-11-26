@@ -10,9 +10,9 @@ import pytest
 from pydantic import ValidationError
 
 from tests.conftest import AUDIT_FIXTURES, M3_PRICING
-from tokenize_cli.ingest import load
-from tokenize_cli.models import UsageRecord
-from tokenize_cli.pricing import load_pricing
+from triage.ingest import load
+from triage.models import UsageRecord
+from triage.pricing import load_pricing
 
 M = 1_000_000
 

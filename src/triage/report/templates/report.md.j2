@@ -1,0 +1,90 @@
+# triage audit report
+
+{% if source %}Source: `{{ source | md }}` · {% endif %}Generated {{ generated }}
+
+## Summary
+
+| Metric | Value |
+|---|---:|
+| Total spend | {{ r.total_spend | usd }} |
+| Estimated savings | {{ r.total_estimated_savings | usd }} |
+| Usage rows | {{ r.rows | tokens }} |
+| Bleed findings | {{ r.finding_count | tokens }} |
+
+## Priority Tier
+
+{% if r.priority.rows %}
+> **{{ r.priority.total_tokens | tokens }} tokens** ran on Priority Tier across {{ r.priority.rows | tokens }} rows ({{ r.priority.input_tokens | tokens }} input, {{ r.priority.output_tokens | tokens }} output, {{ r.priority.cache_tokens | tokens }} cache). They carry $0 marginal cost (covered by the capacity commitment) and are excluded from total spend.
+{% else %}
+No Priority Tier usage.
+{% endif %}
+
+## Bleed findings
+
+{% if not r.finding_count %}
+No bleed findings.
+{% endif %}
+{% if r.uncached_repeats %}
+### Uncached repeated prompts
+
+Identical system prompts sent without prompt caching. Savings assume a 5-minute cache write on the first request (and after each TTL lapse) and cache reads for the rest.
+
+| System prompt hash | Model | Requests | Cacheable tokens | Current | With caching | Est. savings |
+|---|---|---:|---:|---:|---:|---:|
+{% for f in r.uncached_repeats %}
+| `{{ f.system_prompt_hash | md }}` | {{ f.model | md }} | {{ f.requests | tokens }} | {{ f.cacheable_tokens | tokens }} | {{ f.current_cost | usd }} | {{ f.cached_cost | usd }} | {{ f.estimated_savings | usd }} |
+{% endfor %}
+
+{% endif %}
+{% if r.haiku_cliff %}
+### 100k-token cliff
+
+Requests just over a long-context pricing threshold pay the higher tier on every token. Savings price the same tokens at base rates.
+
+| Request | Model | Prompt tokens | Over by | Rate jump | Actual | At base rates | Est. savings |
+|---|---|---:|---:|---:|---:|---:|---:|
+{% for f in r.haiku_cliff %}
+| `{{ f.request_id | md }}` | {{ f.model | md }} | {{ f.prompt_tokens | tokens }} | {{ f.excess_tokens | tokens }} | {{ f.rate_multiplier | float | ratio }} | {{ f.actual_cost | usd }} | {{ f.base_cost | usd }} | {{ f.estimated_savings | usd }} |
+{% endfor %}
+
+{% endif %}
+{% if r.bloated_max_tokens %}
+### Bloated max_tokens
+
+`max_tokens` far above actual output reserves rate-limit capacity without being billed, so the USD saving is $0.00.
+
+| Request | Model | max_tokens | Output tokens | Ratio | Unused tokens | Est. savings |
+|---|---|---:|---:|---:|---:|---:|
+{% for f in r.bloated_max_tokens %}
+| `{{ f.request_id | md }}` | {{ f.model | md }} | {{ f.max_tokens | tokens }} | {{ f.output_tokens | tokens }} | {{ f.ratio | ratio }} | {{ f.unused_tokens | tokens }} | {{ f.estimated_savings | usd }} |
+{% endfor %}
+
+{% endif %}
+## Top {{ r.top_n }} offenders
+
+{% if r.top_offenders %}
+| # | Detector | Offender | Model | Est. savings |
+|---:|---|---|---|---:|
+{% for o in r.top_offenders %}
+| {{ loop.index }} | {{ detector_label(o.detector) }} | `{{ o.label | md }}` | {{ o.model | md }} | {{ o.estimated_savings | usd }} |
+{% endfor %}
+{% else %}
+No offenders with estimated savings.
+{% endif %}
+
+## Spend concentration
+
+{% for title, rows in concentration %}
+### By {{ title | lower }}
+
+{% if rows %}
+| {{ title }} | Spend | Share |
+|---|---:|---:|
+{% for row in rows %}
+| {{ row.key | md }} | {{ row.spend | usd }} | {{ row.share | pct }} |
+{% endfor %}
+{% else %}
+No spend recorded.
+{% endif %}
+
+{% endfor %}

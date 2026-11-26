@@ -1,11 +1,11 @@
-"""Milestone 4A: canonical JSONL replay loader for `tokenize simulate`."""
+"""Milestone 4A: canonical JSONL replay loader for `triage simulate`."""
 
 import pytest
 
 from tests.conftest import FIXTURES
-from tokenize_cli.ingest import IngestError
-from tokenize_cli.ingest.jsonl import ReplayIngestResult, map_line, map_replay, read_replays
-from tokenize_cli.simulate.models import ReplayTask, ToolCall
+from triage.ingest import IngestError
+from triage.ingest.jsonl import ReplayIngestResult, map_line, map_replay, read_replays
+from triage.simulate.models import ReplayTask, ToolCall
 
 REPLAY = FIXTURES / "simulate" / "replay.jsonl"
 

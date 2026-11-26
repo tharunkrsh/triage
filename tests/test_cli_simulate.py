@@ -1,4 +1,4 @@
-"""`tokenize simulate` end to end against the fake Batch API.
+"""`triage simulate` end to end against the fake Batch API.
 
 Seam contract: cli.py calls `estimate.estimate_cost`, `summarize.summarize_simulation` and
 `batch.create_client` through their modules, so they can be observed or replaced here.
@@ -19,17 +19,17 @@ from tests.simulate_fakes import (
     install_client,
     is_judge_request,
 )
-from tokenize_cli.cli import app
-from tokenize_cli.pricing import PricingTable
-from tokenize_cli.report.builder import usd
-from tokenize_cli.simulate import estimate, summarize
-from tokenize_cli.simulate.stats import wilson_interval
+from triage.cli import app
+from triage.pricing import PricingTable
+from triage.report.builder import usd
+from triage.simulate import estimate, summarize
+from triage.simulate.stats import wilson_interval
 
 REPLAY = Path(__file__).parent / "fixtures" / "simulate" / "replay.jsonl"
 SONNET = "claude-sonnet-5-5"
 HAIKU = "claude-haiku-5-5"
 VALID_TASKS = 4  # replay.jsonl also holds invalid rows
-REPORTS = ("tokenize-simulate.md", "tokenize-simulate.html")
+REPORTS = ("triage-simulate.md", "triage-simulate.html")
 
 runner = CliRunner()
 
@@ -38,7 +38,7 @@ runner = CliRunner()
 def _offline(monkeypatch, tmp_path):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
-    monkeypatch.delenv("TOKENIZE_PRICING", raising=False)
+    monkeypatch.delenv("TRIAGE_PRICING", raising=False)
     monkeypatch.chdir(tmp_path)
 
 

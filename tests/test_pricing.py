@@ -4,8 +4,8 @@ import pytest
 from pydantic import ValidationError
 
 from tests.conftest import TEST_PRICING
-from tokenize_cli.models import UsageRecord
-from tokenize_cli.pricing import (
+from triage.models import UsageRecord
+from triage.pricing import (
     PRICING_ENV_VAR,
     PricingTable,
     UnknownGeoError,

@@ -1,8 +1,8 @@
 import pytest
 
 from tests.conftest import FIXTURES
-from tokenize_cli.ingest import IngestError, detect_format, load
-from tokenize_cli.ingest.base import flatten
+from triage.ingest import IngestError, detect_format, load
+from triage.ingest.base import flatten
 
 DIR = FIXTURES / "ingest"
 
