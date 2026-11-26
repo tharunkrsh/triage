@@ -9,14 +9,18 @@ Find where your Claude API spend is leaking, then test whether a cheaper model c
 using the logs you already have.
 
 - **`triage audit`** reads usage logs, Anthropic Console exports or Claude Code session logs
-  and flags waste: repeated
-  prompts sent uncached, requests over a long-context price cliff, oversized `max_tokens`, and
-  spend concentration. It runs offline, makes no API calls and needs no prompt text.
+  and flags waste such as:
+  - repeated prompts sent uncached
+  - requests over a long-context price cliff
+  - oversized `max_tokens`
+  - spend concentration
+  It runs offline, makes no API calls and needs no prompt text.
+
 - **`triage simulate`** replays logged single-turn requests against other Claude models through
   the Message Batches API, grades the answers, and compares cost with pass rate. Pass rates
-  always come with a 95% Wilson interval and sample size, and can gate a CI job.
+  always come with a 95% confidence interval (Wilson score) and sample size, and can gate a CI job.
 
-There is no proxy, SDK wrapper or hosted service: nothing sits in your production request path.
+There is no proxy, SDK wrapper or hosted service: no third-party server ever touches your data.
 
 ![triage audit HTML report](docs/audit-report.png)
 
