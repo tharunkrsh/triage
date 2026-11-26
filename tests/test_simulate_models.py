@@ -128,7 +128,9 @@ def test_deterministic_result_aggregation():
 
 
 def _outcome(**kw):
-    return CandidateOutcome(task_id="t", model="claude-haiku-5-5", status="succeeded", **kw)
+    return CandidateOutcome(
+        **{"task_id": "t", "model": "claude-haiku-5-5", "status": "succeeded", **kw}
+    )
 
 
 YES = JudgeVerdict(passed=True, score=5, rationale="same")
