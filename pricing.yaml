@@ -1,4 +1,4 @@
-# Single source of truth for Anthropic Claude API pricing used by tokenize.
+# Single source of truth for Anthropic Claude API pricing used by triage.
 # All prices are USD per million tokens (MTok) at base (non-batch, global) rates.
 # Cache write/read prices are derived via cache_multipliers (per-model read overrides below).
 version: 1
@@ -21,7 +21,7 @@ service_tier_multipliers:
 # Fast mode (`speed: fast`) multiplies a model's input/output rates by its fast_multiplier and
 # is never Batch-discounted. Models without fast_multiplier don't offer fast mode.
 
-# Bleed-detector thresholds for `tokenize audit`.
+# Bleed-detector thresholds for `triage audit`.
 audit:
   uncached_min_input_tokens: 1024   # minimum cacheable prompt length
   uncached_min_repeats: 2           # identical system prompts before caching is suggested

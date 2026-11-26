@@ -1,5 +1,5 @@
 ARCHITECTURE.md
-# tokenize — System Architecture
+# triage — System Architecture
 
 ## 1. Tech Stack
 - **Language & Packaging:** Python 3.12+, `uv`
@@ -13,14 +13,14 @@ ARCHITECTURE.md
 
 ## 2. Directory Layout
 ```text
-tokenize/
+triage/
 ├── pyproject.toml
 ├── pricing.yaml                 # Single source of truth for Anthropic pricing
 ├── SPEC.md
 ├── ARCHITECTURE.md
 ├── CLAUDE.md
 ├── src/
-│   └── tokenize_cli/            # Named tokenize_cli to avoid stdlib `tokenize` clash
+│   └── triage/
 │       ├── __init__.py
 │       ├── cli.py               # Typer entrypoint (`audit`, `simulate`)
 │       ├── models.py            # Canonical Pydantic schemas

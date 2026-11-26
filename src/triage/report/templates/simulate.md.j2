@@ -1,0 +1,49 @@
+# triage simulation report
+
+{% if r.source %}Source: `{{ r.source | md }}` · {% endif %}Generated {{ generated }}
+
+## Summary
+
+| Metric | Value |
+|---|---:|
+| Simulation spend (Batch API, including judge) | {{ r.total_sim_cost | usd }} |
+| Judge model | {{ r.judge_model or "not used" }} |
+| Judge vs deterministic agreement | {{ r.agreement | ci }} |
+
+## Models overall
+
+Pass rates show 95% Wilson intervals over graded tasks. Errored, expired and canceled replays are counted separately. Costs are projected at standard (non-batch) rates.
+
+| Model | Pass rate | Passes | Errored | Cost per task | Cost per success | Pareto frontier |
+|---|---|---:|---:|---:|---:|---|
+{% for s in r.overall %}
+| {{ s.model | md }} | {{ s.pass_rate | ci }} | {{ s.passes | tokens }} | {{ s.errored | tokens }} | {{ s.projected_cost_per_task | usd_fine }} | {{ s.cost_per_success | usd_fine }} | {{ "yes" if s.on_frontier else "no" }} |
+{% endfor %}
+
+## By feature and prompt version
+
+The frontier compares cost per task with the lower bound of the pass-rate interval.
+
+{% if r.summaries %}
+| Feature / version | Model | Pass rate | Errored | Cost per task | Cost per success | Agreement | Frontier | Baseline |
+|---|---|---|---:|---:|---:|---|---|---|
+{% for s in r.summaries %}
+| {{ group_label(s.feature, s.prompt_version) | md }} | {{ s.model | md }} | {{ s.pass_rate | ci }} | {{ s.errored | tokens }} | {{ s.projected_cost_per_task | usd_fine }} | {{ s.cost_per_success | usd_fine }} | {{ s.agreement | ci }} | {{ "yes" if s.on_frontier else "no" }} | {{ "yes" if s.is_baseline else "no" }} |
+{% endfor %}
+{% else %}
+No replay outcomes.
+{% endif %}
+
+## Failed replays
+
+{% if failures %}
+Showing {{ failures | length }} of {{ failure_count | tokens }}.
+
+| Task | Model | Reason | Response excerpt |
+|---|---|---|---|
+{% for f in failures %}
+| {{ f.outcome.task_id | md_text }} | {{ f.outcome.model | md }} | {{ f.reason | md_text }} | {{ f.excerpt | md_text }} |
+{% endfor %}
+{% else %}
+No failed replays.
+{% endif %}

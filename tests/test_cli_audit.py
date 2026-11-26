@@ -1,15 +1,15 @@
-"""Milestone 3 `tokenize audit <file>` command."""
+"""Milestone 3 `triage audit <file>` command."""
 
 import pytest
 from typer.testing import CliRunner
 
 from tests.conftest import AUDIT_FIXTURES, M3_PRICING
-from tokenize_cli.cli import app
-from tokenize_cli.pricing import PRICING_ENV_VAR
+from triage.cli import app
+from triage.pricing import PRICING_ENV_VAR
 
 runner = CliRunner()
-MD = "tokenize-audit.md"
-HTML = "tokenize-audit.html"
+MD = "triage-audit.md"
+HTML = "triage-audit.html"
 
 
 @pytest.fixture(autouse=True)

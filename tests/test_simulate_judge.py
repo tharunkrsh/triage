@@ -17,15 +17,15 @@ from tests.simulate_fakes import (
     text_block,
     verdict_json,
 )
-from tokenize_cli.models import UsageRecord
-from tokenize_cli.pricing import PricingTable
-from tokenize_cli.simulate.eval_judge import (
+from triage.models import UsageRecord
+from triage.pricing import PricingTable
+from triage.simulate.eval_judge import (
     JUDGE_SCHEMA,
     build_judge_request,
     parse_verdict,
     run_judge,
 )
-from tokenize_cli.simulate.models import ResponseContent
+from triage.simulate.models import ResponseContent
 
 JUDGE = "claude-sonnet-5-5"
 CANDIDATE = "claude-haiku-5-5"

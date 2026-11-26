@@ -3,8 +3,8 @@ import json
 import pytest
 
 from tests.conftest import FIXTURES
-from tokenize_cli.ingest import IngestError, load
-from tokenize_cli.ingest.jsonl import map_line
+from triage.ingest import IngestError, load
+from triage.ingest.jsonl import map_line
 
 SAMPLE = FIXTURES / "ingest" / "sample.jsonl"
 

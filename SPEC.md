@@ -1,12 +1,12 @@
 SPEC.md
-# tokenize — Product Specification (v1)
+# triage — Product Specification (v1)
 
 ## 1. Overview
-`tokenize` is a local-first Python CLI for auditing Anthropic Claude API spend and simulating model downgrades offline. It runs entirely on historical usage exports or anonymised logs with zero production traffic risk.
+`triage` is a local-first Python CLI for auditing Anthropic Claude API spend and simulating model downgrades offline. It runs entirely on historical usage exports or anonymised logs with zero production traffic risk.
 
 ## 2. Core Modes (v1)
 
-### Mode 1: Metadata Bleed Audit (`tokenize audit`)
+### Mode 1: Metadata Bleed Audit (`triage audit`)
 Runs locally with **zero API calls** and **zero prompt text required**.
 - **Inputs:** Canonical JSONL log file OR Anthropic Console Usage/Cost export (CSV/JSON), including Claude Code usage broken down by API key/user.
 - **Bleed Detectors:**
@@ -16,7 +16,7 @@ Runs locally with **zero API calls** and **zero prompt text required**.
   4. **Spend Concentration / Claude Code Burn:** Breaks down spend by `model`, `feature`, and `api_key_id` (highlighting top Claude Code / API spenders).
 - **Output:** Terminal summary table + standalone HTML/Markdown report.
 
-### Mode 2: Offline Downgrade Simulator (`tokenize simulate`)
+### Mode 2: Offline Downgrade Simulator (`triage simulate`)
 Replays historical single-turn prompts across cheaper Claude tiers to measure **cost-per-successful-task**.
 - **Inputs:** Canonical JSONL containing prompt messages, baseline model/response, and optional expected schema or tool definitions.
 - **Execution:** Submits replays via the **Anthropic Message Batches API** (50% cost discount) against target candidate models (e.g., `haiku-5-5`, `sonnet-5-5`).
@@ -34,6 +34,6 @@ Replays historical single-turn prompts across cheaper Claude tiers to measure **
 - **No hosted web UI, database server, or SaaS backend.**
 
 ## 4. v1 Definition of Done
-- `tokenize audit <file>` runs on both canonical JSONL and Anthropic Console exports and generates a valid HTML + Markdown report.
-- `tokenize simulate <file> --target haiku-5-5` runs end-to-end via Anthropic Batch API (with a `--dry-run` flag that estimates replay cost before spending money).
+- `triage audit <file>` runs on both canonical JSONL and Anthropic Console exports and generates a valid HTML + Markdown report.
+- `triage simulate <file> --target haiku-5-5` runs end-to-end via Anthropic Batch API (with a `--dry-run` flag that estimates replay cost before spending money).
 - Full test suite passes with mocked Anthropic API responses (`pytest`).

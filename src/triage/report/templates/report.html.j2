@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>triage audit report</title>
+<style>
+:root {
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0;
+  --panel: #f6f8fa; --accent: #0969da; --good: #1a7f37; --warn: #9a6700;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --border: #3d444d;
+    --panel: #151b23; --accent: #4493f8; --good: #3fb950; --warn: #d29922;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--fg);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 1080px; margin: 0 auto; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; }
+h2 { font-size: 1.25rem; margin: 32px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+h3 { font-size: 1.05rem; margin: 20px 0 6px; }
+.meta, .note { color: var(--muted); font-size: 0.9rem; margin: 0 0 8px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.tile { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.tile .label { color: var(--muted); font-size: 0.85rem; }
+.tile .value { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tile.savings .value { color: var(--good); }
+.callout { border-left: 4px solid var(--accent); background: var(--panel); padding: 10px 14px; border-radius: 4px; }
+.clean { color: var(--good); font-weight: 600; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; margin: 6px 0 12px; font-size: 0.9rem; }
+th, td { border-bottom: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+th { background: var(--panel); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85em; word-break: break-all; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 24px; }
+</style>
+</head>
+<body>
+<main>
+<h1>triage audit report</h1>
+<p class="meta">{% if source %}Source: <code>{{ source }}</code> · {% endif %}Generated {{ generated }}</p>
+
+<h2>Summary</h2>
+<div class="tiles">
+  <div class="tile"><div class="label">Total spend</div><div class="value">{{ r.total_spend | usd }}</div></div>
+  <div class="tile savings"><div class="label">Estimated savings</div><div class="value">{{ r.total_estimated_savings | usd }}</div></div>
+  <div class="tile"><div class="label">Usage rows</div><div class="value">{{ r.rows | tokens }}</div></div>
+  <div class="tile"><div class="label">Bleed findings</div><div class="value">{{ r.finding_count | tokens }}</div></div>
+</div>
+
+<h2>Priority Tier</h2>
+{% if r.priority.rows %}
+<div class="callout">
+  <strong>{{ r.priority.total_tokens | tokens }} tokens</strong> ran on Priority Tier across {{ r.priority.rows | tokens }} rows
+  ({{ r.priority.input_tokens | tokens }} input, {{ r.priority.output_tokens | tokens }} output, {{ r.priority.cache_tokens | tokens }} cache).
+  They carry $0 marginal cost (covered by the capacity commitment) and are excluded from total spend.
+</div>
+{% else %}
+<p class="note">No Priority Tier usage.</p>
+{% endif %}
+
+<h2>Bleed findings</h2>
+{% if not r.finding_count %}
+<p class="clean">No bleed findings.</p>
+{% endif %}
+{% if r.uncached_repeats %}
+<h3>Uncached repeated prompts</h3>
+<p class="note">Identical system prompts sent without prompt caching. Savings assume a 5-minute cache write on the first request (and after each TTL lapse) and cache reads for the rest.</p>
+<div class="scroll"><table>
+<thead><tr><th>System prompt hash</th><th>Model</th><th class="num">Requests</th><th class="num">Cacheable tokens</th><th class="num">Current</th><th class="num">With caching</th><th class="num">Est. savings</th></tr></thead>
+<tbody>
+{% for f in r.uncached_repeats %}
+<tr><td><code>{{ f.system_prompt_hash }}</code></td><td>{{ f.model }}</td><td class="num">{{ f.requests | tokens }}</td><td class="num">{{ f.cacheable_tokens | tokens }}</td><td class="num">{{ f.current_cost | usd }}</td><td class="num">{{ f.cached_cost | usd }}</td><td class="num">{{ f.estimated_savings | usd }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% endif %}
+{% if r.haiku_cliff %}
+<h3>100k-token cliff</h3>
+<p class="note">Requests just over a long-context pricing threshold pay the higher tier on every token. Savings price the same tokens at base rates.</p>
+<div class="scroll"><table>
+<thead><tr><th>Request</th><th>Model</th><th class="num">Prompt tokens</th><th class="num">Over by</th><th class="num">Rate jump</th><th class="num">Actual</th><th class="num">At base rates</th><th class="num">Est. savings</th></tr></thead>
+<tbody>
+{% for f in r.haiku_cliff %}
+<tr><td><code>{{ f.request_id or "" }}</code></td><td>{{ f.model }}</td><td class="num">{{ f.prompt_tokens | tokens }}</td><td class="num">{{ f.excess_tokens | tokens }}</td><td class="num">{{ f.rate_multiplier | float | ratio }}</td><td class="num">{{ f.actual_cost | usd }}</td><td class="num">{{ f.base_cost | usd }}</td><td class="num">{{ f.estimated_savings | usd }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% endif %}
+{% if r.bloated_max_tokens %}
+<h3>Bloated max_tokens</h3>
+<p class="note"><code>max_tokens</code> far above actual output reserves rate-limit capacity without being billed, so the USD saving is $0.00.</p>
+<div class="scroll"><table>
+<thead><tr><th>Request</th><th>Model</th><th class="num">max_tokens</th><th class="num">Output tokens</th><th class="num">Ratio</th><th class="num">Unused tokens</th><th class="num">Est. savings</th></tr></thead>
+<tbody>
+{% for f in r.bloated_max_tokens %}
+<tr><td><code>{{ f.request_id or "" }}</code></td><td>{{ f.model }}</td><td class="num">{{ f.max_tokens | tokens }}</td><td class="num">{{ f.output_tokens | tokens }}</td><td class="num">{{ f.ratio | ratio }}</td><td class="num">{{ f.unused_tokens | tokens }}</td><td class="num">{{ f.estimated_savings | usd }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% endif %}
+
+<h2>Top {{ r.top_n }} offenders</h2>
+{% if r.top_offenders %}
+<div class="scroll"><table>
+<thead><tr><th class="num">#</th><th>Detector</th><th>Offender</th><th>Model</th><th class="num">Est. savings</th></tr></thead>
+<tbody>
+{% for o in r.top_offenders %}
+<tr><td class="num">{{ loop.index }}</td><td>{{ detector_label(o.detector) }}</td><td><code>{{ o.label }}</code></td><td>{{ o.model }}</td><td class="num">{{ o.estimated_savings | usd }}</td></tr>
+{% endfor %}
+</tbody>
+</table></div>
+{% else %}
+<p class="note">No offenders with estimated savings.</p>
+{% endif %}
+
+<h2>Spend concentration</h2>
+<div class="grid2">
+{% for title, rows in concentration %}
+<section>
+<h3>By {{ title | lower }}</h3>
+{% if rows %}
+<table>
+<thead><tr><th>{{ title }}</th><th class="num">Spend</th><th class="num">Share</th></tr></thead>
+<tbody>
+{% for row in rows %}
+<tr><td>{{ row.key }}</td><td class="num">{{ row.spend | usd }}</td><td class="num">{{ row.share | pct }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<p class="note">No spend recorded.</p>
+{% endif %}
+</section>
+{% endfor %}
+</div>
+</main>
+</body>
+</html>

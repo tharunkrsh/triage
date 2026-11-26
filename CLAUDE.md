@@ -3,19 +3,19 @@
 ## 3. `CLAUDE.md`
 
 ```markdown
-# CLAUDE.md — Project Rules for `tokenize`
+# CLAUDE.md — Project Rules for `triage`
 
 ## Stack & Commands
 - Package manager: `uv` (never use bare `pip`).
-- Run CLI: `uv run tokenize --help`
+- Run CLI: `uv run triage --help`
 - Run tests: `uv run pytest`
 - Lint & format: `uv run ruff check . && uv run ruff format --check .`
 
 ## Architecture Rules
-- **Package name:** Always import from `tokenize_cli` (never name a directory `tokenize/` inside `src/` to avoid shadowing Python's stdlib `tokenize`).
+- **Package name:** Always import from `triage` (the package lives in `src/triage/`).
 - **No hardcoded pricing:** All model costs, cliffs, cache multipliers, and batch discounts must be read from `pricing.yaml` via `pricing.py`.
 - **Single-turn only:** Do not build multi-turn conversation loops or live tool execution in v1.
-- **Zero-spend safety:** `tokenize simulate` must support `--dry-run` and display estimated Batch API spend before making paid API calls.
+- **Zero-spend safety:** `triage simulate` must support `--dry-run` and display estimated Batch API spend before making paid API calls.
 
 ## Coding Conventions
 - Use `pydantic` v2 models for all data boundaries; avoid passing raw untyped dicts between modules.

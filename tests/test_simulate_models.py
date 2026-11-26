@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from tokenize_cli.simulate.models import (
+from triage.simulate.models import (
     CandidateOutcome,
     CandidateSummary,
     CheckResult,
@@ -17,7 +17,7 @@ from tokenize_cli.simulate.models import (
     ResponseContent,
     ToolCall,
 )
-from tokenize_cli.simulate.stats import wilson_interval
+from triage.simulate.stats import wilson_interval
 
 # --------------------------------------------------------------------------- ResponseContent
 

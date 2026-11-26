@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from tokenize_cli.models import UsageRecord
+from triage.models import UsageRecord
 
 
 def test_flat_cache_creation_maps_to_5m():
