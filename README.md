@@ -90,7 +90,7 @@ invalid row.
 ### Audit Claude Code usage
 
 Claude Code keeps a JSONL log of every session under `~/.claude/projects/`. Point `audit` at
-that folder to see what your own Claude Code sessions cost:
+that folder to see what your own Claude Code sessions cost. 
 
 ```bash
 uv run triage audit "~/.claude/projects" -o reports/
@@ -104,6 +104,8 @@ uv run triage audit "~/.claude/projects" -o reports/
   disk are counted, and responses from models missing from `pricing.yaml` are skipped with a
   warning.
 - Only token usage is read; prompt and response text never goes into a record.
+
+Useful for tracking API/Bedrock spend by project, catching subagent or Opus quota burn, and checking whether a Pro/Max subscription beats pay-as-you-go.
 
 ### Folders and globs
 
