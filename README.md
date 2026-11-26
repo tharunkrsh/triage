@@ -12,6 +12,17 @@ using the logs you already have.
 
 There is no proxy, SDK wrapper or hosted service: nothing sits in your production request path.
 
+![triage audit HTML report](docs/audit-report.png)
+
+*Excerpt of the HTML report for synthetic data: long findings tables are shortened and the
+spend concentration section is omitted.*
+
+Try it from a clone (offline, no API key):
+
+```bash
+uv run triage audit examples/sample-usage.jsonl -o reports/
+```
+
 ## Installation
 
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
