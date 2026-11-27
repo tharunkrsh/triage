@@ -16,7 +16,7 @@ from rich.table import Table
 
 from triage import __version__
 from triage.audit import AuditResult, run_audit
-from triage.ingest import ADAPTERS, IngestError, IngestResult, load, resolve_inputs
+from triage.ingest import ADAPTERS, IngestError, IngestResult, load
 from triage.ingest.base import IngestIssue
 from triage.ingest.replay import load_replays
 from triage.pricing import PricingTable, UnknownModelError
@@ -50,9 +50,9 @@ def main(
     """triage: Claude API spend auditor."""
 
 
-def _summary_table(source: str, result: IngestResult) -> Table:
+def _summary_table(result: IngestResult) -> Table:
     records = result.records
-    table = Table(title=f"Ingest preview: {escape(source)}", show_header=False)
+    table = Table(title=f"Ingest preview: {escape(result.source)}", show_header=False)
     table.add_column(style="bold")
     table.add_column()
     table.add_row("Format", result.source_format)
@@ -85,7 +85,7 @@ _FormatOption = Annotated[
     typer.Option("--format", help=f"Override auto-detection: {', '.join(ADAPTERS)}."),
 ]
 _StrictOption = Annotated[bool, typer.Option("--strict", help="Fail on the first invalid row.")]
-# A str, so that glob patterns reach `resolve_inputs` untouched.
+# A str, so that glob patterns reach the ingest path resolver untouched.
 _UsagePath = Annotated[
     str,
     typer.Argument(
@@ -107,12 +107,11 @@ def ingest(
 ) -> None:
     """Parse usage logs and preview what triage sees in them."""
     try:
-        source = resolve_inputs(path).label
         result = load(path, fmt=fmt, strict=strict)
-    except (IngestError, ValueError) as exc:
+    except ValueError as exc:  # IngestError included
         raise _fail(str(exc)) from exc
 
-    console.print(_summary_table(source, result))
+    console.print(_summary_table(result))
     _print_issues(result.issues)
 
 
@@ -141,8 +140,8 @@ def audit(
 ) -> None:
     """Detect spend bleed offline and write Markdown + HTML reports. Makes no API calls."""
     try:
-        source = resolve_inputs(path).label
         ingested = load(path, fmt=fmt, strict=strict)
+        source = ingested.source
         result = run_audit(ingested.records, PricingTable.load())
     except (IngestError, UnknownModelError, ValueError) as exc:
         raise _fail(str(exc)) from exc
@@ -211,8 +210,8 @@ def simulate(
         pricing = PricingTable.load()
         targets = batch.resolve_targets(target, pricing)
         judge = None if no_judge else pricing.resolve(judge_model)
-        source = resolve_inputs(path).label
         replays = load_replays(path)
+        source = replays.source
         _print_issues(replays.issues)
         tasks = cli_helpers.select_tasks(replays.tasks, source, sample=sample, seed=seed)
         if len(tasks) < len(replays.tasks):
@@ -281,5 +280,5 @@ def simulate(
 def run() -> None:
     """Console-script entry point."""
     # Click would otherwise expand globs and `~` itself on Windows, turning one quoted
-    # pattern into many arguments before `resolve_inputs` could see it.
+    # pattern into many arguments before the ingest path resolver could see it.
     app(windows_expand_args=False)

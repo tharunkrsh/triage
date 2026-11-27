@@ -4,7 +4,8 @@ import shutil
 import pytest
 
 from tests.conftest import FIXTURES
-from triage.ingest import IngestError, load, resolve_inputs
+from triage.ingest import IngestError, detect_format, load, resolve_inputs
+from triage.ingest.claude_code import ClaudeCodeAdapter
 
 SAMPLE = FIXTURES / "ingest" / "sample.jsonl"
 CONSOLE = FIXTURES / "ingest" / "console_usage.csv"
@@ -120,3 +121,36 @@ def test_format_applies_to_every_file(tmp_path):
     assert len(load(f"{tmp_path}/*.txt", fmt="jsonl").records) == 2
     with pytest.raises(IngestError, match="unknown format"):
         load(tmp_path, fmt="nope")
+
+
+def test_request_log_mentioning_data_is_not_a_console_export(tmp_path):
+    image = {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "AA"}}
+    line = {"model": "claude-sonnet-5-5", "input_tokens": 10, "output_tokens": 5}
+    log = _touch(tmp_path / "img.jsonl", json.dumps({**line, "messages": [image]}) + "\n")
+    assert detect_format(log) == "jsonl"
+    assert len(load(log).records) == 1
+
+
+def test_results_name_their_source_without_a_second_resolve(tmp_path):
+    _touch(tmp_path / "logs" / "a.jsonl")
+    assert load(tmp_path / "logs" / "a.jsonl").source == "a.jsonl"
+    assert load(tmp_path / "logs").source == "logs"
+    assert load(f"{tmp_path}/logs/*.jsonl").source == "*.jsonl"
+
+
+def test_unreadable_session_log_is_not_counted(tmp_path):
+    shutil.copytree(SESSIONS, tmp_path / "sessions")
+    inputs = resolve_inputs(tmp_path / "sessions")
+    missing = inputs.subset([*inputs.files, tmp_path / "sessions" / "gone.jsonl"])
+    result = ClaudeCodeAdapter().read_set(missing)
+    assert result.file_count == len(inputs.files)
+    assert "gone.jsonl" in [i.location for i in result.issues]
+    with pytest.raises(IngestError, match="gone.jsonl"):
+        ClaudeCodeAdapter().read_set(missing, strict=True)
+
+
+def test_a_single_unreadable_file_is_a_clean_error(tmp_path):
+    log = tmp_path / "binary.jsonl"
+    log.write_bytes(b"\xff\xfe\x00\x81\n")
+    with pytest.raises(IngestError, match=r"can't read binary.jsonl: unreadable \(Unicode"):
+        load(log, fmt="jsonl")

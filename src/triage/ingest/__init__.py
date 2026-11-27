@@ -2,20 +2,25 @@
 
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 
 from triage.ingest.anthropic_csv import ConsoleCsvAdapter, ConsoleJsonAdapter
-from triage.ingest.base import IngestAdapter, IngestError, IngestIssue, IngestResult
+from triage.ingest.base import (
+    IngestAdapter,
+    IngestError,
+    IngestIssue,
+    IngestResult,
+    skip_reason,
+    skipped_file,
+)
 from triage.ingest.claude_code import ClaudeCodeAdapter
 from triage.ingest.jsonl import JsonlAdapter
 from triage.ingest.paths import InputSet, resolve_inputs
 
-_CLAUDE_CODE = ClaudeCodeAdapter()
-# Detection order matters: session logs can look like Console JSON (a "data" key) or plain
-# JSONL, and Console JSON is checked before JSONL sniffing.
+# Detection order matters: session logs can look like plain JSONL, so they are checked first.
 ADAPTERS: dict[str, IngestAdapter] = {
-    a.name: a for a in (ConsoleCsvAdapter(), _CLAUDE_CODE, ConsoleJsonAdapter(), JsonlAdapter())
+    a.name: a
+    for a in (ConsoleCsvAdapter(), ClaudeCodeAdapter(), ConsoleJsonAdapter(), JsonlAdapter())
 }
 _CONSOLE_FORMATS = frozenset({ConsoleCsvAdapter.name, ConsoleJsonAdapter.name})
 _HEAD_BYTES = 4096
@@ -47,49 +52,28 @@ def load(path: Path | str, *, fmt: str | None = None, strict: bool = False) -> I
         raise IngestError(f"unknown format {fmt!r}; choose from {', '.join(ADAPTERS)}")
     inputs = resolve_inputs(path)
     if inputs.single:
-        file = inputs.files[0]
-        return ADAPTERS[fmt or detect_format(file)].read(file, strict=strict)
-    return _load_many(inputs, fmt=fmt, strict=strict)
+        return ADAPTERS[fmt or detect_format(inputs.files[0])].read_set(inputs, strict=strict)
 
-
-def _load_many(inputs: InputSet, *, fmt: str | None, strict: bool) -> IngestResult:
-    """Combine several files; one that can't be read is a warning unless `strict`."""
-    results: list[IngestResult] = []
-    issues: list[IngestIssue] = []
-    sessions: list[tuple[Path, str | None]] = []  # read together to deduplicate across files
-    skipped = 0
-
-    def skip(label: str, reason: str) -> None:
-        nonlocal skipped
-        if strict:
-            raise IngestError(f"{label}: {reason}")
-        skipped += 1
-        issues.append(IngestIssue(location=label, message=f"skipped file: {reason}"))
-
+    groups: dict[str, list[Path]] = {}
+    undetected: list[IngestIssue] = []
     for file in inputs.files:
-        label = inputs.display(file)
         try:
-            name = fmt or detect_format(file)
-            if name == _CLAUDE_CODE.name:
-                sessions.append((file, label))
-                continue
-            result = ADAPTERS[name].read(file, strict=strict)
-        except IngestError as exc:
-            skip(label, str(exc))
-            continue
-        except (OSError, UnicodeError, csv.Error) as exc:
-            skip(label, f"unreadable ({type(exc).__name__})")
-            continue
-        results.append(result)
-        for issue in result.issues:
-            where = f"{label}: {issue.location}" if issue.location else label
-            issues.append(issue.model_copy(update={"location": where}))
-    if sessions:
-        combined = _CLAUDE_CODE.read_files(sessions, strict=strict)
-        results.append(combined)
-        issues.extend(combined.issues)
+            groups.setdefault(fmt or detect_format(file), []).append(file)
+        except (IngestError, OSError) as exc:
+            reason = skip_reason(exc)
+            undetected.append(skipped_file(inputs.display(file), reason, strict=strict))
+    results = [
+        ADAPTERS[name].read_set(inputs.subset(files), strict=strict)
+        for name, files in groups.items()
+    ]
+    return _combine(inputs, results, undetected)
 
-    formats = {r.source_format for r in results}
+
+def _combine(
+    inputs: InputSet, results: list[IngestResult], undetected: list[IngestIssue]
+) -> IngestResult:
+    issues = [*undetected, *(issue for r in results for issue in r.issues)]
+    formats = {r.source_format for r in results if r.file_count}
     if not formats:
         first = f" ({issues[0].location}: {issues[0].message})" if issues else ""
         raise IngestError(f"none of the {len(inputs.files)} files could be read{first}")
@@ -99,8 +83,9 @@ def _load_many(inputs: InputSet, *, fmt: str | None, strict: bool) -> IngestResu
             "be counted twice. Narrow the path, for example with a glob."
         )
     return IngestResult(
+        source=inputs.label,
         source_format=", ".join(sorted(formats)),
-        file_count=len(inputs.files) - skipped,
+        file_count=sum(r.file_count for r in results),
         records=[record for r in results for record in r.records],
         issues=issues,
     )

@@ -10,14 +10,22 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
 
-from triage.ingest.base import IngestError, IngestIssue, IngestResult, RowCollector, _summarise
+from triage.ingest.base import (
+    LINE_SUFFIXES,
+    IngestAdapter,
+    IngestIssue,
+    IngestResult,
+    RowCollector,
+    _summarise,
+    read_each,
+)
 from triage.ingest.jsonl import from_usage, iter_objects
+from triage.ingest.paths import InputSet
 from triage.models import UsageRecord
 from triage.pricing import PricingTable, UnknownModelError
 
@@ -101,33 +109,32 @@ def _merge(kept: UsageRecord, new: UsageRecord) -> UsageRecord:
 
 
 class _Reader:
+    """Deduplicates responses across every file of one set; issues are reported per file."""
+
     def __init__(self, *, strict: bool) -> None:
-        self.rows = RowCollector(NAME, strict=strict)
+        self.strict = strict
         self.pricing = PricingTable.load()
         self.responses: dict[_Key, UsageRecord] = {}
         self.unkeyed: list[UsageRecord] = []
         self.unknown_models: dict[str, set[object]] = {}
 
-    def read_file(self, path: Path, label: str | None) -> None:
-        prefix = f"{label}: " if label else ""
-
-        def issue(location: str, message: str) -> None:
-            self.rows.issue(prefix + location, message)
-
+    def read_file(self, path: Path) -> IngestResult:
+        """Fold one log into the set; the result carries only this file's issues."""
+        rows = RowCollector(NAME, source=path.name, strict=self.strict)
         project = _session_project(path)
         subagent = _SUBAGENT_DIR in path.parts
-        for location, obj in iter_objects(path, issue, errors="replace"):
+        for location, obj in iter_objects(path, rows.issue, errors="replace"):
             if obj.get("type") != "assistant":
                 continue
             message = obj.get("message")
             if not isinstance(message, dict):
-                issue(location, "assistant line has no message")
+                rows.issue(location, "assistant line has no message")
                 continue
             if message.get("model") == SYNTHETIC_MODEL:
                 continue
             usage = message.get("usage")
             if not isinstance(usage, dict) or not {"input_tokens", "output_tokens"} <= set(usage):
-                issue(location, "assistant line has no token usage")
+                rows.issue(location, "assistant line has no token usage")
                 continue
             message_id, request_id = message.get("id"), obj.get("requestId")
             sidechain = subagent or obj.get("isSidechain") is True
@@ -144,10 +151,10 @@ class _Reader:
                     }
                 )
             except ValidationError as exc:
-                issue(location, _summarise(exc))
+                rows.issue(location, _summarise(exc))
                 continue
             except (TypeError, AttributeError):
-                issue(location, "malformed token usage")
+                rows.issue(location, "malformed token usage")
                 continue
             if not any(getattr(record, name) for name in _TOKEN_FIELDS):
                 continue
@@ -159,17 +166,16 @@ class _Reader:
                 self.unknown_models.setdefault(record.model, set()).add(key or object())
                 continue
             except ValueError as exc:  # unknown inference_geo or unpriced fast mode
-                issue(location, str(exc))
+                rows.issue(location, str(exc))
                 continue
             if key is None:
-                # Appended directly: these stay warnings even under --strict.
-                note = "no message.id or requestId; cannot deduplicate"
-                self.rows.issues.append(IngestIssue(location=prefix + location, message=note))
+                rows.warn(location, "no message.id or requestId; cannot deduplicate")
                 self.unkeyed.append(record)
             elif key in self.responses:
                 self.responses[key] = _merge(self.responses[key], record)
             else:
                 self.responses[key] = record
+        return rows.result()
 
     def _fold_missing_request_ids(self) -> None:
         """A line lacking requestId belongs to the response that shares its message.id."""
@@ -180,23 +186,29 @@ class _Reader:
                 target = identified[mid]
                 self.responses[target] = _merge(self.responses[target], record)
 
-    def result(self) -> IngestResult:
+    def result(self, read: IngestResult) -> IngestResult:
+        """`read` (the per-file issues and counts) with the deduplicated records."""
         self._fold_missing_request_ids()
-        for model, seen in sorted(self.unknown_models.items()):
-            message = (
-                f"skipped {len(seen):,} responses from unknown model {model!r}: "
+        skipped = [
+            IngestIssue(
+                message=f"skipped {len(seen):,} responses from unknown model {model!r}: "
                 "add it to pricing.yaml"
             )
-            self.rows.issues.insert(0, IngestIssue(message=message))
-        self.rows.records = [*self.responses.values(), *self.unkeyed]
-        return self.rows.result()
+            for model, seen in sorted(self.unknown_models.items(), reverse=True)
+        ]
+        return read.model_copy(
+            update={
+                "records": [*self.responses.values(), *self.unkeyed],
+                "issues": [*skipped, *read.issues],
+            }
+        )
 
 
-class ClaudeCodeAdapter:
+class ClaudeCodeAdapter(IngestAdapter):
     name = NAME
 
     def detect(self, path: Path, head: str) -> bool:
-        if path.suffix.lower() not in {".jsonl", ".ndjson"}:
+        if path.suffix.lower() not in LINE_SUFFIXES:
             return False
         # `head` can end inside a long first line, so read whole lines from the file.
         with path.open(encoding="utf-8-sig", errors="replace") as fh:
@@ -215,21 +227,9 @@ class ClaudeCodeAdapter:
         return False
 
     def read(self, path: Path, *, strict: bool = False) -> IngestResult:
-        return self.read_files([(path, None)], strict=strict)
+        return self.read_set(InputSet(label=path.name, files=[path]), strict=strict)
 
-    def read_files(
-        self, files: Sequence[tuple[Path, str | None]], *, strict: bool = False
-    ) -> IngestResult:
-        """Read several (path, label) logs as one set, deduplicating across them.
-
-        An unopenable file is a warning when it is one of many, and an error under `strict`.
-        """
+    def read_set(self, inputs: InputSet, *, strict: bool = False) -> IngestResult:
+        """Read the logs as one set, so a response split across files is counted once."""
         reader = _Reader(strict=strict)
-        for path, label in files:
-            try:
-                reader.read_file(path, label)
-            except OSError as exc:
-                if label is None:
-                    raise IngestError(f"can't read {path.name}: {exc.strerror}") from exc
-                reader.rows.issue(label, f"can't read file: {exc.strerror}")
-        return reader.result()
+        return reader.result(read_each(NAME, inputs, reader.read_file, strict=strict))
