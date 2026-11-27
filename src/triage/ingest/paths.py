@@ -12,9 +12,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from triage.ingest.base import IngestError
+from triage.ingest.base import LINE_SUFFIXES, IngestError
 
-DIRECTORY_SUFFIXES = frozenset({".jsonl", ".ndjson"})
 _GLOB_CHARS = frozenset("*?[")
 
 
@@ -28,6 +27,10 @@ class InputSet(BaseModel):
     @property
     def single(self) -> bool:
         return self.base is None
+
+    def subset(self, files: list[Path]) -> InputSet:
+        """The same input, narrowed to `files` (for example, the files of one format)."""
+        return self.model_copy(update={"files": files})
 
     def display(self, path: Path) -> str:
         """`path` relative to the directory or fixed glob prefix it was found under."""
@@ -64,9 +67,7 @@ def resolve_inputs(spec: Path | str) -> InputSet:
     if path.is_file():
         return InputSet(label=path.name, files=[path])
     if path.is_dir():
-        found = [
-            p for p in path.rglob("*") if p.suffix.lower() in DIRECTORY_SUFFIXES and p.is_file()
-        ]
+        found = [p for p in path.rglob("*") if p.suffix.lower() in LINE_SUFFIXES and p.is_file()]
         if not found:
             raise IngestError(f"no .jsonl or .ndjson files under {path}")
         label = path.name or path.resolve().name or str(path)

@@ -16,7 +16,9 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from triage.ingest.base import (
+    LINE_SUFFIXES,
     RECORD_FIELDS,
+    IngestAdapter,
     IngestError,
     IngestIssue,
     IngestResult,
@@ -118,11 +120,11 @@ def iter_objects(
             yield loc, obj
 
 
-class JsonlAdapter:
+class JsonlAdapter(IngestAdapter):
     name = NAME
 
     def detect(self, path: Path, head: str) -> bool:
-        if path.suffix.lower() in {".jsonl", ".ndjson"}:
+        if path.suffix.lower() in LINE_SUFFIXES:
             return True
         first = next((ln for ln in head.splitlines() if ln.strip()), "")
         try:
@@ -131,7 +133,7 @@ class JsonlAdapter:
             return False
 
     def read(self, path: Path, *, strict: bool = False) -> IngestResult:
-        rows = RowCollector(NAME, strict=strict)
+        rows = RowCollector(NAME, source=path.name, strict=strict)
         for loc, obj in iter_objects(path, rows.issue):
             row, unknown = map_line(obj)
             rows.ignore(unknown)
@@ -145,6 +147,7 @@ class JsonlAdapter:
 class ReplayIngestResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
+    source: str  # the file, folder or pattern name that was loaded; never a full path
     tasks: list[ReplayTask] = Field(default_factory=list)
     issues: list[IngestIssue] = Field(default_factory=list)
 
@@ -223,4 +226,4 @@ def read_replays(
         ignored |= unknown
     if ignored:
         issue(None, f"ignored unrecognised fields: {', '.join(sorted(ignored))}")
-    return ReplayIngestResult(tasks=tasks, issues=issues)
+    return ReplayIngestResult(source=Path(path).name, tasks=tasks, issues=issues)

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from triage.ingest.base import IngestError, IngestIssue
+from triage.ingest.base import LINE_SUFFIXES, IngestError, IngestIssue, skip_reason, skipped_file
 from triage.ingest.claude_code import ClaudeCodeAdapter
 from triage.ingest.jsonl import ReplayIngestResult, read_replays
-from triage.ingest.paths import DIRECTORY_SUFFIXES, InputSet, resolve_inputs
+from triage.ingest.paths import InputSet, resolve_inputs
 from triage.simulate.models import ReplayTask
 
 _TRANSCRIPTS = ClaudeCodeAdapter()
@@ -17,15 +17,11 @@ _TRANSCRIPT_REASON = "Claude Code transcripts can't be replayed: they are multi-
 def _read_one(inputs: InputSet, file: Path) -> ReplayIngestResult:
     """Read one of several files, labelling its issues and generated ids with its path."""
     label = inputs.display(file)
-    if file.suffix.lower() not in DIRECTORY_SUFFIXES:
-        skipped = IngestIssue(location=label, message="skipped file: not JSONL")
-        return ReplayIngestResult(issues=[skipped])
+    if file.suffix.lower() not in LINE_SUFFIXES:
+        skipped = skipped_file(label, "not JSONL", strict=False)
+        return ReplayIngestResult(source=label, issues=[skipped])
     result = read_replays(file, id_prefix=f"{label}:")
-    issues = [
-        i.model_copy(update={"location": f"{label}: {i.location}" if i.location else label})
-        for i in result.issues
-    ]
-    return result.model_copy(update={"issues": issues})
+    return result.model_copy(update={"issues": [i.under(label) for i in result.issues]})
 
 
 def load_replays(spec: Path | str) -> ReplayIngestResult:
@@ -45,11 +41,9 @@ def load_replays(spec: Path | str) -> ReplayIngestResult:
                 continue
             result = read_replays(file) if inputs.single else _read_one(inputs, file)
         except (OSError, UnicodeError) as exc:
-            reason = f"unreadable ({type(exc).__name__})"
             if inputs.single:
-                raise IngestError(f"can't read {file.name}: {reason}") from exc
-            skipped = IngestIssue(location=inputs.display(file), message=f"skipped file: {reason}")
-            issues.append(skipped)
+                raise IngestError(f"can't read {file.name}: {skip_reason(exc)}") from exc
+            issues.append(skipped_file(inputs.display(file), skip_reason(exc), strict=False))
             continue
         tasks.extend(result.tasks)
         issues.extend(result.issues)
@@ -57,4 +51,4 @@ def load_replays(spec: Path | str) -> ReplayIngestResult:
         noun = "file" if transcripts == 1 else "files"
         message = f"skipped {transcripts:,} {noun}. {_TRANSCRIPT_REASON}"
         issues.insert(0, IngestIssue(message=message))
-    return ReplayIngestResult(tasks=tasks, issues=issues)
+    return ReplayIngestResult(source=inputs.label, tasks=tasks, issues=issues)

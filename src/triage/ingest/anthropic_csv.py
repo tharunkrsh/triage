@@ -17,7 +17,14 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from triage.ingest.base import IngestError, IngestResult, RowCollector, flatten
+from triage.ingest.base import (
+    LINE_SUFFIXES,
+    IngestAdapter,
+    IngestError,
+    IngestResult,
+    RowCollector,
+    flatten,
+)
 
 CSV_NAME = "console-csv"
 JSON_NAME = "console-json"
@@ -130,33 +137,34 @@ def _iter_json_rows(doc: Any) -> Iterator[tuple[str, dict[str, Any]]]:
                 yield f"{prefix}data[{i}]", flatten(merged)
 
 
-class ConsoleJsonAdapter:
+class ConsoleJsonAdapter(IngestAdapter):
     name = JSON_NAME
 
     def detect(self, path: Path, head: str) -> bool:
-        return path.suffix.lower() == ".json" or (
-            head.lstrip().startswith(("{", "[")) and '"data"' in head
-        )
+        suffix = path.suffix.lower()
+        if suffix in LINE_SUFFIXES:  # request logs can mention "data" (e.g. base64 images)
+            return False
+        return suffix == ".json" or (head.lstrip().startswith(("{", "[")) and '"data"' in head)
 
     def read(self, path: Path, *, strict: bool = False) -> IngestResult:
         try:
             doc = json.loads(path.read_text(encoding="utf-8-sig"))
         except json.JSONDecodeError as exc:
             raise IngestError(f"invalid JSON: {exc}") from exc
-        rows = RowCollector(JSON_NAME, strict=strict)
+        rows = RowCollector(JSON_NAME, source=path.name, strict=strict)
         for loc, flat in _iter_json_rows(doc):
             _add(rows, loc, flat)
         return rows.result()
 
 
-class ConsoleCsvAdapter:
+class ConsoleCsvAdapter(IngestAdapter):
     name = CSV_NAME
 
     def detect(self, path: Path, head: str) -> bool:
         return path.suffix.lower() == ".csv"
 
     def read(self, path: Path, *, strict: bool = False) -> IngestResult:
-        rows = RowCollector(CSV_NAME, strict=strict)
+        rows = RowCollector(CSV_NAME, source=path.name, strict=strict)
         with path.open(encoding="utf-8-sig", newline="") as fh:
             reader = csv.DictReader(fh)
             headers = {_norm(h) for h in reader.fieldnames or []}
