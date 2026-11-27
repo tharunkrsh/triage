@@ -83,7 +83,7 @@ The reports break spend down by model, feature, API key and workspace, and list 
 savings opportunities. Estimated savings cover uncached repeats and cliff crossings;
 `max_tokens` findings are reported without a dollar figure.
 
-`triage ingest <file>` previews how a file will be parsed. `--format` overrides auto-detection
+`triage ingest <path>` previews how a file, folder or glob will be parsed. `--format` overrides auto-detection
 (`console-csv`, `console-json`, `jsonl`, `claude-code`) and `--strict` fails on the first
 invalid row.
 
@@ -117,6 +117,12 @@ uv run triage audit logs/                         # every JSONL file under logs/
 uv run triage audit "logs/2026-11-*.jsonl"        # quote globs so the shell leaves them alone
 uv run triage simulate "replays/**/*.jsonl" -t haiku-5-5 --dry-run
 ```
+
+- Unreadable files are skipped with a warning, or stop the run with `--strict`.
+- One run can't combine Console usage exports with per-request logs, because the same spend
+  would be counted twice. Narrow the path, for example with a glob.
+- `simulate` skips Claude Code session logs with a warning: they are multi-turn sessions and
+  can't be replayed.
 
 ### Estimate a simulation (`--dry-run`, free)
 
@@ -202,8 +208,9 @@ rate, so check that column too.
 
 ## Input format
 
-`audit` accepts Anthropic Console usage exports (CSV or JSON) or JSONL with one request per
-line. Token counts can be top-level fields or an API-style `usage` object:
+`audit` accepts Anthropic Console usage exports (CSV or JSON), Claude Code session logs as
+they are on disk, or JSONL with one request per line. In JSONL, token counts can be top-level
+fields or an API-style `usage` object:
 
 ```json
 {"request_id": "req_001", "timestamp": "2026-10-01T09:00:00Z", "model": "claude-sonnet-5-5", "input_tokens": 2400, "output_tokens": 180, "max_tokens": 4096, "feature": "summarise", "system_prompt_hash": "sha256:aaa"}
